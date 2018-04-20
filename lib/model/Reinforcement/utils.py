@@ -34,7 +34,7 @@ class AveMeter():
         self.opr += 1
         if self.opr >= self.size:
             pos = self.opr % self.size
-            self.numes[pos] = x
+            self.elems[pos] = x
             self.avg = sum(self.elems) / self.size
         else:
             self.elems.append(x)
