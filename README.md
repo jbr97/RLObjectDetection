@@ -1,5 +1,22 @@
 # A *Faster* Pytorch Implementation of Faster R-CNN
 
+## Code Introduction
+
+All Faster-RCNN train & test codes are moved into RCNN_base folder.
+Codes:
+```
+trainvalnet.py
+scripts/train.sh
+scripts/test.sh
+lib/datasets/RL_coco.py
+lib/datasets/RL_coco_dataset.py
+lib/datasets/RL_coco_loader.py
+lib/model/Reinforcement/resnet.py
+lib/model/Reinforcement/utils.py
+lib/datasets/tools/RL_generate_labels/main.py
+lib/datasets/tools/RL_generate_labels/main2.py
+```
+
 ## Introduction
 
 This project is a *faster* pytorch implementation of faster R-CNN, aimed to accelerating the training of faster R-CNN object detection models. Recently, there are a number of good implementations:
