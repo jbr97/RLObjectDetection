@@ -37,7 +37,7 @@ class AveMeter():
             self.avg = sum(self.elems) / self.size
         else:
             self.elems.append(x)
-            self.avg = sum(self.elems) / self.opr
+            self.avg = sum(self.elems) / (self.opr+1)
         self.opr += 1
 
 def accuracy(output, target, k=1):
