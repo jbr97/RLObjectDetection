@@ -31,7 +31,6 @@ class AveMeter():
 
     def add(self, x):
         self.val = x
-        self.opr += 1
         if self.opr >= self.size:
             pos = self.opr % self.size
             self.elems[pos] = x
@@ -39,6 +38,7 @@ class AveMeter():
         else:
             self.elems.append(x)
             self.avg = sum(self.elems) / self.opr
+        self.opr += 1
 
 def accuracy(output, target, k=1):
     output, target = output.reshape(-1), target.reshape(-1)
