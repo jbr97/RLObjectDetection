@@ -120,9 +120,7 @@ class ResNet(nn.Module):
 
         self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
-        self.fc8 = nn.Linear(2048, 4096)
-        self.fc = nn.Linear(4096, 1)
-        #self.fc = nn.Linear(2048, 1)
+        self.fc = nn.Linear(2048, 1)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -187,15 +185,11 @@ class ResNet(nn.Module):
 
         # head to tail
         pooled_feat = self.layer4(pooled_feat).mean(3).mean(2)
-        
         pooled_feat = pooled_feat.view(pooled_feat.shape[0], -1)
 
-        fc8 = self.fc8(pooled_feat)
-        pred = self.fc(fc8)
-        #pred = self.fc(pooled_feat)
+        pred = self.fc(pooled_feat)
 
         loss, noweight_loss = self._weighted_mse_loss(pred, label, weight)
-
         return pred, loss, noweight_loss, label
 
     def _weighted_mse_loss(self, input, target, weights):
