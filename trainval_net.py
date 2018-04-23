@@ -42,10 +42,10 @@ def parse_args():
                         help='where you save checkpoint')
     parser.add_argument('--start_epoch', dest='start_epoch',
                         help='starting epoch',
-                        default=1, type=int)
+                        default=0, type=int)
     parser.add_argument('--epochs', dest='max_epochs',
                         help='number of epochs to train',
-                        default=8, type=int)
+                        default=5, type=int)
     parser.add_argument('--mGPUs', dest='mGPUs',
                         help='whether use multiple GPUs',
                         action='store_true')
@@ -115,16 +115,19 @@ def main():
         Evaluate(model, dataloader, logger)
     else:
         for epoch in range(args.max_epochs):
-            torch.save({
-                    'epoch': epoch,
-                    'state_dict': model.state_dict()}, 
-                'snapshot/epoch_%d.pth' % epoch)
-            adjust_learning_rate(optimizer, epoch, args.lr, interval=5)
+            adjust_learning_rate(optimizer, epoch, args.lr, interval=4)
             Train(epoch, model, dataloader, optimizer, logger)
-            torch.save({
-                    'epoch': epoch,
-                    'state_dict': model.state_dict()}, 
-                'snapshot/epoch_%d.pth' % (epoch + 1))
+            if args.mGPUs:
+                torch.save({
+                        'epoch': epoch,
+                        'state_dict': model.module.state_dict()}, 
+                    'snapshot/epoch_%d.pth' % (epoch + 1))
+            else:
+                torch.save({
+                        'epoch': epoch,
+                        'state_dict': model.state_dict()}, 
+                    'snapshot/epoch_%d.pth' % (epoch + 1))
+
 
 def Evaluate(model, val_loader, logger):
     losses = AveMeter(100)
@@ -136,21 +139,25 @@ def Evaluate(model, val_loader, logger):
 
     start = time.time()
     for i, inp in enumerate(val_loader):
-        x = {
-            'image': torch.autograd.Variable(inp[0]).cuda(),
-            'bbox': torch.autograd.Variable(torch.FloatTensor(inp[2])).cuda(),
-        }
+        # input data processing
+        img = torch.autograd.Variable(inp[0]).cuda(async=True)
+        inp[2] = torch.FloatTensor(inp[2])
+        bboxes = torch.autograd.Variable(inp[2][:, :5].contiguous()).cuda(async=True)
+        labels = torch.autograd.Variable(inp[2][:, 7].contiguous()).cuda(async=True)
+        weights = torch.autograd.Variable(inp[2][:, 8].contiguous()).cuda(async=True)
         data_time.add(time.time() - start)
 
-        pred, loss, _, label= model(x)
-        losses.add(loss.data[0])
+        # forward
+        pred, loss, _ = model(img, bboxes, labels, weights)
+        loss = loss.mean()
 
+        # get output datas
         pred = pred.cpu().data.numpy()
-        label = label.cpu().data.numpy()
+        labels = labels.cpu().data.numpy()
 
-        Prec1.add(accuracy(pred, label, 1))
-        Prec5.add(accuracy(pred, label, 5))
-
+        losses.add(loss.data[0])
+        Prec1.add(accuracy(pred, labels, 1))
+        Prec5.add(accuracy(pred, labels, 5))
         batch_time.add(time.time() - start)
         logger.info('Test: [{0}/{1}]\t'
                     'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -164,7 +171,7 @@ def Evaluate(model, val_loader, logger):
                         Prec5=Prec5)
                     )
         start = time.time()
-    logger.info('Prec1: %.3f Prec3: %.3f' % (Prec1.avg, Prec3.avg))
+    logger.info('Prec1: %.3f Prec5: %.3f' % (Prec1.avg, Prec5.avg))
     
 
 def Train(epoch, model, train_loader, optimizer, logger):
@@ -174,24 +181,49 @@ def Train(epoch, model, train_loader, optimizer, logger):
     data_time = AveMeter(100)
     model.train()
 
+    img = torch.FloatTensor(1)
+    bboxes = torch.FloatTensor(1)
+    labels = torch.FloatTensor(1)
+    weights = torch.FloatTensor(1)
+
+    img = img.cuda()
+    bboxes = bboxes.cuda()
+    labels = labels.cuda()
+    weights = weights.cuda()
+
+    img = Variable(img)
+    bboxes = Variable(bboxes)
+    labels = Variable(labels)
+    weights = Variable(weights)
+    
     start = time.time()
     for i, inp in enumerate(train_loader):
-        x = {
-            'image': torch.autograd.Variable(inp[0]).cuda(),
-            'bbox': torch.autograd.Variable(torch.FloatTensor(inp[2])).cuda(),
-        }
+        # input data processing
+        inp[2] = torch.FloatTensor(inp[2])
+        img.data.resize_(inp[0].size()).copy_(inp[0])
+        bboxes.data.resize_(inp[2][:,:5].size()).copy_(inp[2][:,:5])
+        labels.data.resize_(inp[2][:,7].size()).copy_(inp[2][:,7].contiguous())
+        weights.data.resize_(inp[2][:,8].size()).copy_(inp[2][:,8].contiguous())
+        '''
+        #img = torch.autograd.Variable(inp[0]).cuda(async=True)
+        bboxes = torch.autograd.Variable(inp[2][:, :5].contiguous()).cuda(async=True)
+        labels = torch.autograd.Variable(inp[2][:, 7].contiguous()).cuda(async=True)
+        weights = torch.autograd.Variable(inp[2][:, 8].contiguous()).cuda(async=True)
+        '''
         data_time.add(time.time() - start)
 
-        pred, loss, noweight_loss, label = model(x)
-
-        losses.add(loss.data[0])
-        noweight_losses.add(noweight_loss.data[0])
+        # forward
+        model.zero_grad()
+        pred, loss, noweight_loss = model(img, bboxes, labels, weights)
+        loss, noweight_loss = loss.mean(), noweight_loss.mean()
 
         # backward
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
+        
+        losses.add(loss.data[0])
+        noweight_losses.add(noweight_loss.data[0])
         batch_time.add(time.time() - start)
         logger.info('Train: [{0}][{1}/{2}]\t'
                     'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'

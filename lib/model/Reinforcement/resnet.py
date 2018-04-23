@@ -161,17 +161,8 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, data):
-        x = data["image"]
-        bboxes = data["bbox"][:, :5].contiguous()
-
-        label = data["bbox"][:, 7].contiguous()
-        label = label.view(label.shape[0], -1)
-
-        weight = data["bbox"][:, 8].contiguous()
-        weight = weight.view(weight.shape[0], -1)
-
-        x = self.conv1(x)
+    def forward(self, img, bboxes, labels, weights):
+        x = self.conv1(img)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
@@ -179,21 +170,24 @@ class ResNet(nn.Module):
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        #x = self.layer4(x)
 
-        pooled_feat = self.RCNN_roi_align(x, bboxes.view(-1, 5))
+        roi_feat = self.RCNN_roi_align(x, bboxes.view(-1, 5))
+        #roi_feat = self.RCNN_roi_align(x, bboxes[:,:5])
 
         # head to tail
-        pooled_feat = self.layer4(pooled_feat).mean(3).mean(2)
+        pooled_feat = self.layer4(roi_feat)
+        pooled_feat = pooled_feat.mean(3)
+        pooled_feat = pooled_feat.mean(2)
         pooled_feat = pooled_feat.view(pooled_feat.shape[0], -1)
 
         pred = self.fc(pooled_feat)
 
-        loss, noweight_loss = self._weighted_mse_loss(pred, label, weight)
-        return pred, loss, noweight_loss, label
+        loss, noweight_loss = self._weighted_mse_loss(pred, labels, weights)
+        #loss, noweight_loss = self._weighted_mse_loss(pred, bboxes[:,7], bboxes[:,8])
+        return pred, loss, noweight_loss
 
-    def _weighted_mse_loss(self, input, target, weights):
-        out = (input - target) ** 2
+    def _weighted_mse_loss(self, inp, target, weights):
+        out = (inp - target) ** 2
         noweight_loss = torch.mean(out)
         out = out * (weights.expand_as(out))
         loss = torch.mean(out)  # or sum over whatever dimensions
