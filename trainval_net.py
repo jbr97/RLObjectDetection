@@ -5,19 +5,15 @@ from __future__ import print_function
 import _init_paths
 import os
 import sys
-import numpy as np
-import argparse
-import pprint
-import pdb
 import time
+import argparse
+import numpy as np
 
 import torch
-torch.backends.cudnn.enabled = False
-from torch.autograd import Variable, grad
 import torch.nn as nn
 import torch.optim as optim
-
 import torchvision.transforms as transforms
+from torch.autograd import Variable, grad
 from torch.utils.data.sampler import Sampler
 from torch.utils.data.distributed import DistributedSampler
 import logging
@@ -34,12 +30,14 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
     parser.add_argument('--data_dir', default='',
                         help='where you put images')
-    parser.add_argument('--anno_file', default='',
+    parser.add_argument('--ann_file', default='',
                         help='where you put official json')
-    parser.add_argument('--labels_file', default='',
+    parser.add_argument('--dt_file', default='',
                         help='where you put our json')
     parser.add_argument('--resume', default="",
                         help='where you save checkpoint')
+    parser.add_argument('--pretrain', default='',
+                        help='where you save pretrain model')
     parser.add_argument('--start_epoch', dest='start_epoch',
                         help='starting epoch',
                         default=0, type=int)
@@ -53,7 +51,7 @@ def parse_args():
                         help='evaluate mode',
                         action='store_true')
 
-    parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
+    parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
                         metavar='LR', help='initial learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
@@ -74,24 +72,34 @@ def main():
 
     normalize = transforms.Normalize(mean=[0.4485295, 0.4249905, 0.39198247],
                                      std=[0.12032582, 0.12394787, 0.14252729])
-    dataset = COCODataset(args.data_dir, args.anno_file, args.labels_file, COCOTransform([800], 1200, flip=False),
-                          normalize_fn=normalize)
-    logger.info("Dataset Build Done")
-
-    dataloader = COCODataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=6)
-    logger.info("DataLoader Build Done")
+    dataset = COCODataset(
+            args.data_dir, 
+            args.ann_file, 
+            args.dt_file, 
+            COCOTransform([800], 1200, flip=False),
+            normalize_fn=normalize)
+    dataloader = COCODataLoader(
+            dataset, 
+            batch_size=args.batch_size, 
+            shuffle=True, 
+            num_workers=6)
 
     model = resnet101()
-    logger.info("Model Build Done")
     logger.info(model)
+
+    if args.pretrain:
+        assert os.path.isfile(args.pretrain), '{} is not a valid file'.format(args.pretrain)
+        checkpoint = torch.load(args.pretrain)
+        model.load_state_dict(checkpoint, strict=False)
 
     if args.resume:
         assert os.path.isfile(args.resume), '{} is not a valid file'.format(args.resume)
         checkpoint = torch.load(args.resume)
-        model.load_state_dict(checkpoint, strict=False)
+        start_epoch = checkpoint['epoch']
+        model.load_state_dict(checkpoint['state_dict'], strict=False)
 
     model.freeze_layer()
-    logger.info("Freeze Done")
+    logger.info("Layers already freezed.")
 
     params = []
     for i, (key, value) in enumerate(dict(model.named_parameters()).items()):
@@ -108,7 +116,6 @@ def main():
 
     if args.mGPUs:
         model = nn.DataParallel(model)
-
     model = model.cuda()
 
     if args.evaluate:
@@ -117,16 +124,19 @@ def main():
         for epoch in range(args.max_epochs):
             adjust_learning_rate(optimizer, epoch, args.lr, interval=4)
             Train(epoch, model, dataloader, optimizer, logger)
-            if args.mGPUs:
-                torch.save({
-                        'epoch': epoch,
-                        'state_dict': model.module.state_dict()}, 
-                    'snapshot/epoch_%d.pth' % (epoch + 1))
-            else:
-                torch.save({
-                        'epoch': epoch,
-                        'state_dict': model.state_dict()}, 
-                    'snapshot/epoch_%d.pth' % (epoch + 1))
+            Savecheckpoint(epoch, model)
+    logger.info('Exit without error.')
+
+
+def Savecheckpoint(epoch, model):
+    if args.mGPUs:
+        model_state_dict = model.module.state_dict()
+    else:
+        model_state_dict = model.state_dict()
+    torch.save({
+            'epoch': epoch,
+            'state_dict': model_state_dict}, 
+        os.path.join(args.save_dir, 'epoch_%d.pth' % (epoch + 1)) )
 
 
 def Evaluate(model, val_loader, logger):
@@ -140,24 +150,23 @@ def Evaluate(model, val_loader, logger):
     start = time.time()
     for i, inp in enumerate(val_loader):
         # input data processing
-        img = torch.autograd.Variable(inp[0]).cuda(async=True)
-        inp[2] = torch.FloatTensor(inp[2])
-        bboxes = torch.autograd.Variable(inp[2][:, :5].contiguous()).cuda(async=True)
-        labels = torch.autograd.Variable(inp[2][:, 7].contiguous()).cuda(async=True)
-        weights = torch.autograd.Variable(inp[2][:, 8].contiguous()).cuda(async=True)
+        img_var = inp[0].cuda(async=True)
+        bboxes = Variable(inp[1][:,:,:5].contiguous()).cuda(async=True)
+        targets = Variable(inp[2][:,:,:,1].contiguous()).cuda(async=True)
+        weights = Variable(inp[2][:,:,:,2].contiguous()).cuda(async=True)
         data_time.add(time.time() - start)
 
         # forward
-        pred, loss, _ = model(img, bboxes, labels, weights)
+        pred, loss, _ = model(img, bboxes, targets, weights)
         loss = loss.mean()
 
         # get output datas
         pred = pred.cpu().data.numpy()
-        labels = labels.cpu().data.numpy()
+        targets = targets.cpu().data.numpy()
 
         losses.add(loss.data[0])
-        Prec1.add(accuracy(pred, labels, 1))
-        Prec5.add(accuracy(pred, labels, 5))
+        Prec1.add(accuracy(pred, targets, 1))
+        Prec5.add(accuracy(pred, targets, 5))
         batch_time.add(time.time() - start)
         logger.info('Test: [{0}/{1}]\t'
                     'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -181,40 +190,17 @@ def Train(epoch, model, train_loader, optimizer, logger):
     data_time = AveMeter(100)
     model.train()
 
-    img = torch.FloatTensor(1)
-    bboxes = torch.FloatTensor(1)
-    labels = torch.FloatTensor(1)
-    weights = torch.FloatTensor(1)
-
-    img = img.cuda()
-    bboxes = bboxes.cuda()
-    labels = labels.cuda()
-    weights = weights.cuda()
-
-    img = Variable(img)
-    bboxes = Variable(bboxes)
-    labels = Variable(labels)
-    weights = Variable(weights)
-    
     start = time.time()
     for i, inp in enumerate(train_loader):
         # input data processing
-        inp[2] = torch.FloatTensor(inp[2])
-        img.data.resize_(inp[0].size()).copy_(inp[0])
-        bboxes.data.resize_(inp[2][:,:5].size()).copy_(inp[2][:,:5])
-        labels.data.resize_(inp[2][:,7].size()).copy_(inp[2][:,7].contiguous())
-        weights.data.resize_(inp[2][:,8].size()).copy_(inp[2][:,8].contiguous())
-        '''
-        #img = torch.autograd.Variable(inp[0]).cuda(async=True)
-        bboxes = torch.autograd.Variable(inp[2][:, :5].contiguous()).cuda(async=True)
-        labels = torch.autograd.Variable(inp[2][:, 7].contiguous()).cuda(async=True)
-        weights = torch.autograd.Variable(inp[2][:, 8].contiguous()).cuda(async=True)
-        '''
+        img_var = inp[0].cuda(async=True)
+        bboxes = Variable(inp[1][:,:,:5].contiguous()).cuda(async=True)
+        targets = Variable(inp[2][:,:,:,1].contiguous()).cuda(async=True)
+        weights = Variable(inp[2][:,:,:,2].contiguous()).cuda(async=True)
         data_time.add(time.time() - start)
 
         # forward
-        model.zero_grad()
-        pred, loss, noweight_loss = model(img, bboxes, labels, weights)
+        pred, loss, noweight_loss = model(img_var, bboxes, targets, weights)
         loss, noweight_loss = loss.mean(), noweight_loss.mean()
 
         # backward

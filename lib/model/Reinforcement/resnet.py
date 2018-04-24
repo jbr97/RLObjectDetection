@@ -114,13 +114,14 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        # self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         # it is slightly better whereas slower to set stride = 1
-        # self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
 
         self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
-        self.fc = nn.Linear(2048, 1)
+        self.fc8 = nn.Linear(2048, 4096)
+        self.fc = nn.Linear(4096, 24)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -161,7 +162,11 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, img, bboxes, labels, weights):
+    def forward(self, img, bboxes, targets, weights):
+        bboxes = bboxes.view(-1, 5)
+        targets = targets.view(-1, 24)
+        weights = weights.view(-1, 24)
+
         x = self.conv1(img)
         x = self.bn1(x)
         x = self.relu(x)
@@ -171,27 +176,26 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
 
-        roi_feat = self.RCNN_roi_align(x, bboxes.view(-1, 5))
-        #roi_feat = self.RCNN_roi_align(x, bboxes[:,:5])
+        roi_feat = self.RCNN_roi_align(x, bboxes)
 
         # head to tail
         pooled_feat = self.layer4(roi_feat)
+        # avg pool
         pooled_feat = pooled_feat.mean(3)
         pooled_feat = pooled_feat.mean(2)
-        pooled_feat = pooled_feat.view(pooled_feat.shape[0], -1)
 
-        pred = self.fc(pooled_feat)
+        x = self.fc8(pooled_feat)
+        x = self.relu(x)
+        pred = self.fc(x)
 
-        loss, noweight_loss = self._weighted_mse_loss(pred, labels, weights)
-        #loss, noweight_loss = self._weighted_mse_loss(pred, bboxes[:,7], bboxes[:,8])
+        loss, noweight_loss = self._weighted_mse_loss(pred, targets, weights)
         return pred, loss, noweight_loss
 
-    def _weighted_mse_loss(self, inp, target, weights):
-        out = (inp - target) ** 2
-        noweight_loss = torch.mean(out)
-        out = out * (weights.expand_as(out))
-        loss = torch.mean(out)  # or sum over whatever dimensions
-        return loss, noweight_loss
+    def _weighted_mse_loss(self, inp, targets, weights):
+        # TODO move this function
+        noweight_loss = (inp - targets) ** 2
+        loss = noweight_loss * (weights.expand_as(noweight_loss))
+        return loss.mean(), noweight_loss.mean()
 
 def resnet18(pretrained=False):
     """Constructs a ResNet-18 model.

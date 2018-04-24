@@ -1,131 +1,184 @@
 from __future__ import division
 
-from datasets.RL_coco import COCO
+import os
+import PIL
+import math
+import json
+import numpy as np
+from collections import defaultdict
 
+import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
-import numpy as np
-import math
-import os
-import json
-from PIL import Image
+from pycocotools.coco import COCO
+from pycocotools.mask import iou as IoU
+# TODO from models.Reinforcement.RL_actions import action_generator
 
 class COCODataset(Dataset):
-    category_to_class = {}
-    class_to_category = {}
-
-    @staticmethod
-    def get_class(category_id):
-        return COCODataset.category_to_class[category_id]
-
-    @staticmethod
-    def get_category(class_id):
-        return COCODataset.class_to_category[class_id]
-
-    def __init__(self, root_dir, anno_file, labels_file, transform_fn = None, normalize_fn=None):
+    # TODO
+    """
+    """
+    def __init__(self, root_dir, ann_file, dt_file, transform_fn = None, normalize_fn=None):
+        # TODO
+        """
+        """
         self.root_dir = root_dir
         self.transform_fn = transform_fn
         self.normalize_fn = normalize_fn
+        self.cocoGt = COCO(ann_file)
+        self.imgIds = sorted(self.cocoGt.getImgIds())
+        self.catIds = sorted(self.cocoGt.getCatIds())
+        self.cat2cls = dict([(c, i) for i,c in enumerate(self.catIds)])
+        self.cls2cat = dict([(i, c) for i,c in enumerate(self.catIds)])
+        
+        ## get groud-truth boxes
+        self.annIds = self.cocoGt.getAnnIds(imgIds=self.imgIds, catIds=self.catIds)
+        self.gt_boxes_list = self.cocoGt.loadAnns(self.annIds)
+        self.gt_boxes = defaultdict(list)
+        for gt in self.gt_boxes_list:
+            self.gt_boxes[gt['image_id'], gt['category_id']].append(gt)
 
-        self.coco = COCO(anno_file)
+        ## loading initial detection boxes from json file
+        self.dt_boxes_list = json.load(open(dt_file, 'r'))
+        self.dt_boxes = defaultdict(list)
+        for dt in self.dt_boxes_list:
+            self.dt_boxes[dt['image_id'], dt['category_id']].append(dt)
 
-        category_ids = self.coco.cats.keys()
+        ## TODO this procedure need to be moved
+        boxdim = 4
+        alpha = .1
+        delta = [1., .5, .1]
+        numacts = len(delta) * boxdim * 2
+        self.actIds = np.array(range(numacts))
+        self.actDeltas = np.zeros((numacts, boxdim), dtype=np.float32)
+        num = 0
+        for i in range(boxdim):
+            for j in range(len(delta)):
+                self.actDeltas[num][i] = delta[j] * alpha
+                num += 1
+                self.actDeltas[num][i] = -delta[j] * alpha
+                num += 1
 
-        self.category_to_class = {c: i + 1 for i, c in enumerate(sorted(category_ids))}
-        self.class_to_category = {i + 1: c for i, c in enumerate(sorted(category_ids))}
-
-        self.img_ids = list(set([_['image_id'] for _ in self.coco.anns.values()]))
-
-        self.id2label = {}
-        self.id2bbox = {}
-        self.id2score = {}
-        self.id2cat = {}
-        labels = json.load(open(labels_file, "r"))
-        for label in labels:
-            if label["image_id"] in self.id2label.keys():
-                self.id2label[label['image_id']].append(label['dious'])
-                self.id2bbox[label['image_id']].append(label['bbox'])
-                self.id2score[label['image_id']].append(label['score'])
-                self.id2cat[label['image_id']].append(label['category_id'])
-            else:
-                self.id2label[label['image_id']] = [label['dious']]
-                self.id2bbox[label['image_id']] = [label['bbox']]
-                self.id2score[label['image_id']] = [label['score']]
-                self.id2cat[label['image_id']] = [label['category_id']]
 
     def __len__(self):
-        #return 10
-        return len(self.img_ids)
+        return len(self.imgIds)
+
+
+    def _computeIoU(self, b, gt_list):
+        # TODO this function need to be moved
+        gt = [g['bbox'] for g in gt_list]
+        iscrowd = [int(g['iscrowd']) for g in gt_list]
+        if len(gt) == 0:
+            return 0
+        ious = IoU([b], gt, iscrowd)
+
+        return ious.max()
+            
 
     def __getitem__(self, idx):
         '''
         Args: index of data
         Return: a single data:
-            image_data: FloatTensor, shape [1, 3, h, w]
-            image_info: list of [resized_image_h, resized_image_w, resize_scale, origin_image_h, origin_image_w]
-            bboxes: np.array, shape [N, 5] (x1,y1,x2,y2,label)
-            filename: str
+            img_data:   FloatTensor, shape [3, h, w]
+            bboxes:     FloatTensor, shape [Nr_dts, 6] (x1, y1, x2, y2, score, cls_id)
+            labels:     FloatTensor, shape [Nr_dts, act_nums, 3] (act_id, label, weight)
+            im_info:    np.array of
+                    [resized_image_h, resized_image_w, resize_scale, 
+                    origin_image_h, origin_image_w, 
+                    filename]
         Warning:
             we will feed fake ground truthes if None
         '''
-        #import random
-        #idx = 0
-        img_id = self.img_ids[idx]
+        img_id = self.imgIds[idx]
 
-        meta_img = self.coco.imgs[img_id]
+        ## get all image infos from cocoGt
+        meta_img = self.cocoGt.imgs[img_id]
         filename = os.path.join(self.root_dir, meta_img['file_name'])
-        image_h, image_w = meta_img['height'], meta_img['width']
-
-        bboxes = []
-        pos_weight, neg_weight = 0, 0
-        for i, box in enumerate(self.id2bbox[img_id]):
-            # bbox category
-            cat = self.id2cat[img_id][i]
-            # bbox category score(useless here)
-            score = self.id2score[img_id][i]
-            # added IOU by this action
-            weight = math.exp(math.fabs(self.id2label[img_id][i]))
-            # is added or not
-            if self.id2label[img_id][i] > 0:
-                label = 1
-                pos_weight += weight
-            else:
-                label = -1
-                neg_weight += weight
-            bbox = np.array(self.id2bbox[img_id][i] + [score] + [cat] + [label] + [weight])
-            bbox[2] += bbox[0]
-            bbox[3] += bbox[1]
-
-            bboxes.append(bbox)
+        origin_img_h, origin_img_w = meta_img['height'], meta_img['width']
         
-        ## Weights Normaliztion
-        ## Balance positive and negative samples
-        normalized_weights = [ b[7]/pos_weight if b[6]>0 else b[7]/neg_weight for b in bboxes ]
-        bboxes = np.array(bboxes, dtype = np.float32)
-        ## Balance positive and negative samples
-        bboxes[:, 7] = np.array(normalized_weights, dtype=np.float32) * bboxes.shape[0] * 0.5
-
-        img = Image.open(filename)
+        ## read image data
+        img = PIL.Image.open(filename)
         if img.mode == 'L':
             img = img.convert('RGB')
-        assert(img.size[0]==image_w and img.size[1]==image_h)
-        ## transform
+        ## enumerate dt_boxes in image
+        generate_bboxes = []
+        generate_labels = []
+        for cat_id in self.catIds:
+            for dt_box in self.dt_boxes[img_id, cat_id]:
+                bbox = dt_box['bbox']
+                x, y, w, h = bbox
+                bbox[2] += bbox[0]
+                bbox[3] += bbox[1]
+                score = dt_box['score']
+                cls_id = self.cat2cls[cat_id]
+                generate_bboxes.append(bbox+[score]+[cls_id])
+                # TODO this function need to be moved
+                origin_iou = self._computeIoU(bbox, self.gt_boxes[img_id, cat_id])
+                
+                generate_label = []
+                ## enumerate actions and apply to the bbox
+                for act_id in self.actIds:
+                    delta = self.actDeltas[act_id]
+                    new_bbox = bbox + delta * np.array([w, h, w, h])
+                    # TODO this function need to be moved
+                    new_iou = self._computeIoU(new_bbox, self.gt_boxes[img_id, cat_id])
+                    dious = new_iou - origin_iou
+                    if dious > 0:
+                        label = 1
+                    else:
+                        label = -1
+                    #label = int(dious > 0) * 2 - 1
+                    weight = math.exp(math.fabs(dious))
+                    generate_label.append([act_id, label, weight])
+                generate_labels.append(generate_label)
+
+        ## image data processing
+        generate_bboxes = np.array(generate_bboxes)
+        generate_labels = np.array(generate_labels)
         if self.transform_fn:
-            resize_scale, img, bboxes = self.transform_fn(img, bboxes)
+            resize_scale, img, bboxes = self.transform_fn(img, generate_bboxes)
         else:
             resize_scale = 1
-        new_image_w, new_image_h = img.size
-
-        ## to tensor
+        resize_img_w, resize_img_h = img.size
         to_tensor = transforms.ToTensor()
-        img = to_tensor(img)
-        if self.normalize_fn != None:
-            img = self.normalize_fn(img)
+        img_data = to_tensor(img)
+        if self.normalize_fn:
+            img_data = self.normalize_fn(img_data)
 
-        return [img.unsqueeze(0),
-                [new_image_h, new_image_w, resize_scale, image_h, image_w],
-                bboxes,
+        ## for each action, normalize the weights
+        # TODO need a function
+        num_boxes = generate_labels.shape[0]
+
+        for act_id in self.actIds: 
+            pos_cnt, neg_cnt = 0, 0
+            pos_weight, neg_weight = 0, 0
+            for i in range(num_boxes):
+                # positive samples
+                if generate_labels[i][act_id][1] == 1:
+                    pos_cnt += 1
+                    pos_weight += generate_labels[i][act_id][2]
+                else:
+                    neg_cnt += 1
+                    neg_weight += generate_labels[i][act_id][2]
+            for i in range(num_boxes):
+                if generate_labels[i][act_id][1] == 1:
+                    generate_labels[i][act_id][2] *= (pos_cnt+neg_cnt) / pos_weight / 2
+                else:
+                    generate_labels[i][act_id][2] *= (pos_cnt+neg_cnt) / neg_weight / 2
+
+        ## labels to tensor        
+        generate_bboxes = torch.FloatTensor(generate_bboxes)
+        generate_labels = torch.FloatTensor(generate_labels)
+
+        ## construct im_info
+        im_info = [resize_img_h, resize_img_w, resize_scale,
+                origin_img_h, origin_img_w,
                 filename]
+
+        return [img_data, 
+                generate_bboxes, 
+                generate_labels,
+                im_info]
 
 class COCOTransform(object):
     def __init__(self, sizes, max_size, flip=False):
