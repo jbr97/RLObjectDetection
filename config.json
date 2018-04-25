@@ -1,0 +1,11 @@
+{
+  "lr": 1e-3,
+  "weight_decay": 4e-5,
+  "lr_decay": 0.97,
+  "decay_epoch": 1,
+  "batch_size": 2,
+  "target_network_update_freq": 500,
+  "print_freq": 1,
+  "GAMMA": 1,
+  "max_epoch": 16
+}

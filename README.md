@@ -17,6 +17,12 @@ lib/datasets/tools/RL_generate_labels/main.py
 lib/datasets/tools/RL_generate_labels/main2.py
 ```
 
+Codes for DQL
+```
+lib/model/Reinforcement/DQLNetwork.py
+lib/model/Reinforcement/Policy.py
+```
+
 ## Introduction
 
 This project is a *faster* pytorch implementation of faster R-CNN, aimed to accelerating the training of faster R-CNN object detection models. Recently, there are a number of good implementations:
