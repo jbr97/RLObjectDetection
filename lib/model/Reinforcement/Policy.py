@@ -14,9 +14,10 @@ class DQN(object):
         set parameters for training
         :param config:
         """
-        self.learning_rate = config.lr
-        self.batch_size = config.sample_num
-        self.gamma = 1.0
+        self.learning_rate = config["lr"]
+        self.weight_decay = config["weight_decay"]
+        self.batch_size = config["sample_num"]
+        self.gamma = config["gamma"]
         self.iters = 0
 
     def init_net(self):

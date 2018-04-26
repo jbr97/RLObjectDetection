@@ -1,6 +1,6 @@
 from __future__ import division
 
-from coco import COCO
+from pycocotools.coco import COCO
 
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms

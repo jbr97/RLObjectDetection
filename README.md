@@ -21,7 +21,16 @@ Codes for DQL
 ```
 lib/model/Reinforcement/DQLNetwork.py
 lib/model/Reinforcement/Policy.py
+lib/model/Reinforcement/Player.py
+lib/datasets/DQL_coco_dataset.py
+lib/datasets/DQL_coco_loader.py
+trainval_DQLnet.py
+config.json
 ```
+
+#### 未完成
++ LR decay： 现在的代码是以iter为基础的，decay策略还没实现
++ 还没在集群上跑
 
 ## Introduction
 

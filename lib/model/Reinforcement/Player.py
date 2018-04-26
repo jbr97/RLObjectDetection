@@ -30,8 +30,8 @@ class Player(object):
         self.eps_iter = 5000
 
         # sample parameter
-        self.sample_num = 256
-        self.sample_ratio = 0.5
+        self.sample_num = config["sample_num"]
+        self.sample_ratio = config["sample_ratio"]
 
         if not os.path.exists(self.log_path):
             os.makedirs(self.log_path)
@@ -82,16 +82,17 @@ class Player(object):
 
                 losses.add(np.mean(loss))
                 batch_time.add(time.time() - start)
-                logger.info('Train: [{0}][{1}/{2}]\t'
-                            'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                            'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                            'Loss {losses.val:.3f} ({losses.avg:.3f})\t'.format(
-                            epoch + 1, i, len(train_dataloader),
-                            batch_time=batch_time,
-                            data_time=data_time,
-                            losses=losses)
-                )
-                start = time.time()
+
+                if iters % self.print_freq == 0:
+                    logger.info('Train: [{0}][{1}/{2}]\t'
+                                'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                                'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                                'Loss {losses.val:.3f} ({losses.avg:.3f})\t'.format(
+                                epoch + 1, i, len(train_dataloader),
+                                batch_time=batch_time,
+                                data_time=data_time,
+                                losses=losses)
+                    )
 
                 if iters % self.ckpt_freq == 0:
                     state = {
@@ -99,8 +100,17 @@ class Player(object):
                         'state_dict': self.policy.eval_net.state_dict()
                     }
                     self._save_model(state)
+                    logger.info("Save Checkpoint at {} iters".format(iters))
 
+                if iters % self.target_network_update_freq == 0:
+                    self.policy.update_target_network()
+                    logger.info("Update Target Network at {} iters".format(iters))
+
+                start = time.time()
                 iters += 1
+
+    def val(self, val_data_loader):
+        pass
 
     def _save_model(self, model):
         save_path = os.path.join(self.log_path, 'model-{}.pth'.format(model['iter']))
