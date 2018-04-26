@@ -47,7 +47,7 @@ class COCODataLoader(DataLoader):
         assert(max_num_bboxes > 0)
 
         padded_images = torch.FloatTensor(batch_size, 3, max_img_h, max_img_w)
-        padded_bboxes = torch.FloatTensor(batch_size, max_num_bboxes, 7)
+        padded_bboxes = torch.FloatTensor(batch_size, max_num_bboxes, 8)
         padded_labels = torch.FloatTensor(batch_size, max_num_bboxes, num_acts, 3)
         for bid in range(batch_size):
             img = images[bid]

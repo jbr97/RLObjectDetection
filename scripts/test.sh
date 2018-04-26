@@ -1,9 +1,10 @@
-CUDA_VISIBLE_DEVICES="3" \
-  python trainval_net.py \
+CUDA_VISIBLE_DEVICES="0" \
+python trainval_net.py \
        --data_dir=data/coco/images/val2014 \
-       --anno_file=data/coco/annotations/instances_minival2014.json \
-       --labels_file=data/coco/labels/minival2014_action_01.json \
-       --resume=snapshot/epoch_1.pth \
-       --batch-size=1 \
+       --ann_file=data/coco/annotations/instances_minival2014.json \
+       --dt_file=data/output/detections_minival2014_results.json \
+       --pretrain=/n/jbr/RL_model_dump/pretrained/faster_rcnn_new.pth \
+       --resume=snapshot/epoch_10.pth \
+       --batch-size=8  \
        --evaluate \
-       2>&1 | tee log/test.log 
+       2>&1 | tee log/train.log 
