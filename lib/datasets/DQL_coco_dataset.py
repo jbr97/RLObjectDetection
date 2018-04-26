@@ -96,7 +96,7 @@ class COCODataset(Dataset):
         assert(img.size[0]==image_w and img.size[1]==image_h)
         ## transform
         if self.transform_fn:
-            resize_scale, img, bboxes = self.transform_fn(img, bboxes, gts)
+            resize_scale, img, bboxes, gts = self.transform_fn(img, bboxes, gts)
         else:
             resize_scale = 1
         new_image_w, new_image_h = img.size
@@ -107,7 +107,7 @@ class COCODataset(Dataset):
         if self.normalize_fn != None:
             img = self.normalize_fn(img)
 
-        return [img,
+        return [img.unsqueeze(0),
                 bboxes,
                 gts,
                 [new_image_h, new_image_w, resize_scale, image_h, image_w],

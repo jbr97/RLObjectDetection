@@ -4,6 +4,9 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 
+import logging
+logger = logging.getLogger('glabel')
+
 def to_np_array(x):
     if isinstance(x, Variable): x = x.data
     return x.cpu().numpy() if torch.is_tensor(x) else np.array(x)
@@ -52,11 +55,12 @@ class COCODataLoader(torch.utils.data.DataLoader):
             padded_images.append(F.pad(img, pad_size, 'constant', 0).data.cpu())
 
             # pad zero to predict_bboxes
-            predict_bboxes = to_np_array(predict_bboxes[b_ix])
-            new_predict_bboxes = np.zeros([max_num_predict_bboxes, predict_bboxes.shape[-1]])
-            new_predict_bboxes[range(predict_bboxes.shape[0]), :] = predict_bboxes
+            pred_bboxes = to_np_array(predict_bboxes[b_ix])
+            new_predict_bboxes = np.zeros([max_num_predict_bboxes, pred_bboxes.shape[-1]])
+            new_predict_bboxes[range(pred_bboxes.shape[0]), :] = pred_bboxes
             batch_id = np.zeros([max_num_predict_bboxes, 1])
-            padded_predict_bboxes.extend(np.concatenate((batch_id, predict_bboxes), axis=1))
+            batch_id[:, :] = b_ix
+            padded_predict_bboxes.extend(np.concatenate((batch_id, new_predict_bboxes), axis=1))
 
             # pad zeros to gt_bboxes
             gt_bboxes = to_np_array(ground_truth_bboxes[b_ix])

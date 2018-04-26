@@ -11,7 +11,7 @@ from torch.autograd import Variable
 import logging
 logger = logging.getLogger("global")
 
-from Policy import DQN
+from model.Reinforcement.Policy import DQN
 from model.Reinforcement.utils import AveMeter
 
 class Player(object):
@@ -37,7 +37,9 @@ class Player(object):
             os.makedirs(self.log_path)
 
         self.policy = DQN(self.config)
+        logger.info("DQN model build done")
         self.policy.init_net()
+        logger.info("Init Done")
 
     def train(self, train_dataloader):
         iters = 0
@@ -60,17 +62,20 @@ class Player(object):
                 actions = self.policy.get_action(imgs, bboxes).tolist()
 
                 # replace some action in random policy
-                for i in range(actions):
+                for i in range(len(actions)):
                     if np.random.uniform() > self.epsilon:
-                        actions[i] = np.random.randint(0, self.num_actions)
+                        actions[i] = np.random.randint(0, self.num_actions + 1)
                 self.epsilon = iters / self.eps_iter
+                logger.info(actions)
 
                 # compute iou for epoch bbox before and afer action
                 # we can get delta_iou
                 # bboxes, actions, transform_bboxes, delta_iou
                 transform_bboxes = self._transform(bboxes, actions)
                 old_iou = self._compute_iou(gts, bboxes)
+                logger.info(old_iou)
                 new_iou = self._compute_iou(gts, transform_bboxes)
+                logger.info(new_iou)
                 delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
                 # sample bboxes for a positive and negitive balance
@@ -122,8 +127,8 @@ class Player(object):
         :param actions:
         :return:
         """
-        transform_bboxes = bboxes
-        for i, action in actions:
+        transform_bboxes = bboxes.copy()
+        for i, action in enumerate(actions):
             if action == 1:
                 transform_bboxes[i, 1] += transform_bboxes[i, 1] * 0.02
             elif action == 2:
@@ -182,8 +187,8 @@ class Player(object):
         """
         ious = []
         for i in range(self.batch_size):
-            gt = gts[gts[0] == i][1:5]
-            bbox = bboxes[bboxes[0] == i][1:5]
+            gt = gts[gts[:, 0] == i][:, 1:5]
+            bbox = bboxes[bboxes[:, 0] == i][:, 1:5]
             iou = np.max(self._bbox_iou_overlaps(bbox, gt), 1).tolist()
             ious.extend(iou)
         return ious
@@ -228,9 +233,9 @@ class Player(object):
         if len(bg_inds) > bg_num:
             bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
 
-        inds = fg_inds + bg_inds
-
-        return bboxes[inds, :], actions[inds], tranform_bboxes[inds, :], delta_iou[inds]
+        inds = np.array(np.append(fg_inds, bg_inds))
+        logger.info(inds)
+        return bboxes[inds, :], np.array(actions)[inds].tolist(), tranform_bboxes[inds, :], np.array(delta_iou)[inds].tolist()
 
     def _get_rewards(self, actions, delta_iou):
         """
@@ -239,7 +244,7 @@ class Player(object):
         :return: rewards: [N]
         """
         rewards = []
-        for i in range(actions):
+        for i in range(len(actions)):
             if actions[i] == 0:
                 rewards.append(0.4)
             else:

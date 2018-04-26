@@ -1,4 +1,5 @@
 {
+  "mode": "train",
   "data_dir": "data/coco/images/val2014",
   "ann_file": "data/coco/annotations/instances_minival2014.json",
   "dt_file": "data/output/detections_minival2014_results.json",

@@ -9,6 +9,7 @@ import logging
 import time
 import torchvision.transforms as transforms
 
+import _init_paths
 from model.Reinforcement.utils import init_log
 from model.Reinforcement.Player import Player
 from datasets.DQL_coco_dataset import COCODataset, COCOTransform
@@ -30,21 +31,24 @@ def main():
     normalize = transforms.Normalize(mean=[0.4485295, 0.4249905, 0.39198247],
                                      std=[0.12032582, 0.12394787, 0.14252729])
     dataset = COCODataset(
-        cfg.data_dir,
-        cfg.ann_file,
-        cfg.dt_file,
+        cfg["data_dir"],
+        cfg["ann_file"],
+        cfg["dt_file"],
         COCOTransform([800], 1200, flip=False),
         normalize_fn=normalize)
     dataloader = COCODataLoader(
         dataset,
-        batch_size=cfg.batch_size,
+        batch_size=cfg["batch_size"],
         shuffle=True,
         num_workers=6)
+    logger.info("Dataset Build Done")
 
     player = Player(cfg)
-    if cfg.mode == "train":
+    if cfg["mode"] == "train":
+        logger.info("Start training!!!")
         player.train(dataloader)
-    elif cfg.mode == 'val':
+    elif cfg["mode"] == 'val':
+        logger.info("-----------Start validate---------")
         player.eval(dataloader)
 
 if __name__ == "__main__":

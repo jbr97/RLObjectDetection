@@ -5,8 +5,10 @@ import torch
 from torch.autograd import Variable
 import numpy as np
 
-from DQLNetwork import resnet101
+from model.Reinforcement.DQLNetwork import resnet101
 
+import logging
+logger = logging.getLogger("global")
 
 class DQN(object):
     def __init__(self, config):
@@ -41,13 +43,13 @@ class DQN(object):
         :param bboxes:
         :return:
         """
-        img = Variable(torch.FloatTensor(imgs).cuda()),
-        bboxes = Variable(torch.FloatTensor(bboxes[:5]).contiguous().cuda())
+        img = Variable(imgs).cuda()
+        bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
 
         values = self.eval_net(img, bboxes)
 
-        action = torch.max(values, 1)[1].data.numpy()
-
+        action = torch.max(values, 1)[1].cpu().data.numpy()
+        # logger.info(action)
         # action = action[0]
         return action
 
@@ -57,7 +59,7 @@ class DQN(object):
         # learning rate decay
         # self._adjust_learning_rate()
 
-        imgs = Variable(torch.FloatTensor(imgs).cuda())
+        imgs = Variable(imgs.cuda())
         bboxes = Variable(torch.FloatTensor(bboxes[:5]).contiguous().cuda())
         actions = Variable(torch.LongTensor(np.array(actions)).cuda()).view(self.batch_size, 1)
         transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:5]).contiguous().cuda())

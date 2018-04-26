@@ -30,7 +30,8 @@ config.json
 
 #### 未完成
 + LR decay： 现在的代码是以iter为基础的，decay策略还没实现
-+ 还没在集群上跑
++ 还没在集群上跑，目前问题是sample的数量比总数多
++ action是错误的
 
 ## Introduction
 

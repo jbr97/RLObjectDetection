@@ -13,6 +13,9 @@ import math
 import torch.utils.model_zoo as model_zoo
 import pdb
 
+import logging
+logger = logging.getLogger('global')
+
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
        'resnet152']
 
@@ -114,7 +117,7 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
         # it is slightly better whereas slower to set stride = 1
         # self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
 
