@@ -1,4 +1,5 @@
 import sys
+import os
 
 import torch.nn as nn
 import torch
@@ -20,6 +21,8 @@ class DQN(object):
         self.weight_decay = config["weight_decay"]
         self.batch_size = config["sample_num"]
         self.gamma = config["gamma"]
+        self.pretrain = config["pretrain"]
+        self.resume = config["resume"]
         self.iters = 0
 
     def init_net(self):
@@ -29,6 +32,19 @@ class DQN(object):
         """
         self.eval_net = resnet101().cuda()
         self.target_net = resnet101().cuda()
+
+        if self.pretrain != "":
+            assert os.path.isfile(self.pretrain), '{} is not a valid file'.format(self.pretrain)
+            checkpoint = torch.load(self.pretrain)
+            self.eval_net.load_state_dict(checkpoint, strict=False)
+            self.target_net.load_state_dict(checkpoint, strict=False)
+
+        if self.resume != "":
+            assert os.path.isfile(self.resume), '{} is not a valid file'.format(self.resume)
+            checkpoint = torch.load(self.resume)
+            # start_epoch = checkpoint['epoch']
+            self.eval_net.load_state_dict(checkpoint['state_dict'], strict=True)
+            self.target_net.load_state_dict(checkpoint['state_dict'], strict=True)
 
         self.loss_func = nn.MSELoss()
 
@@ -53,7 +69,7 @@ class DQN(object):
         # action = action[0]
         return action
 
-    def learn(self, imgs, bboxes, actions, transform_bboxes, rewards):
+    def learn(self, imgs, bboxes, actions, transform_bboxes, rewards, not_end):
         self.iters += 1
 
         # learning rate decay
@@ -69,7 +85,7 @@ class DQN(object):
 
         Q_next = self.target_net(imgs, transform_bboxes).detach()
         Q_next_mask = Q_next.max(1)[0].view(self.batch_size, 1)
-        Q_target = rewards + self.gamma * Q_next_mask
+        Q_target = rewards + self.gamma * Q_next_mask * not_end
 
         loss = self.loss_func(Q_eval, Q_target)
 

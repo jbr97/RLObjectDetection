@@ -24,6 +24,7 @@ class Player(object):
         self.log_path = config["log_path"]
         self.batch_size = config["batch_size"]
         self.num_actions = config["num_actions"]
+        self.num_rl_steps = config["num_rl_steps"]
 
         # control sample probablity
         self.epsilon = 0.0
@@ -58,61 +59,67 @@ class Player(object):
                 bboxes = inp[1]
                 gts = inp[2]
 
-                # get actions from eval_net
-                actions = self.policy.get_action(imgs, bboxes).tolist()
+                for j in range(self.num_rl_steps):
+                    # get actions from eval_net
+                    actions = self.policy.get_action(imgs, bboxes).tolist()
 
-                # replace some action in random policy
-                for i in range(len(actions)):
-                    if np.random.uniform() > self.epsilon:
-                        actions[i] = np.random.randint(0, self.num_actions + 1)
-                self.epsilon = iters / self.eps_iter
-                logger.info(actions)
+                    # replace some action in random policy
+                    for i in range(len(actions)):
+                        if np.random.uniform() > self.epsilon:
+                            actions[i] = np.random.randint(0, self.num_actions + 1)
+                    self.epsilon = iters / self.eps_iter
+                    logger.info(actions)
 
-                # compute iou for epoch bbox before and afer action
-                # we can get delta_iou
-                # bboxes, actions, transform_bboxes, delta_iou
-                transform_bboxes = self._transform(bboxes, actions)
-                old_iou = self._compute_iou(gts, bboxes)
-                logger.info(old_iou)
-                new_iou = self._compute_iou(gts, transform_bboxes)
-                logger.info(new_iou)
-                delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
+                    # compute iou for epoch bbox before and afer action
+                    # we can get delta_iou
+                    # bboxes, actions, transform_bboxes, delta_iou
+                    transform_bboxes = self._transform(bboxes, actions)
+                    old_iou = self._compute_iou(gts, bboxes)
+                    logger.info(old_iou)
+                    new_iou = self._compute_iou(gts, transform_bboxes)
+                    logger.info(new_iou)
+                    delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
-                # sample bboxes for a positive and negitive balance
-                bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)
+                    # sample bboxes for a positive and negitive balance
+                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)
 
-                rewards = self._get_rewards(actions, delta_iou)
+                    rewards = self._get_rewards(actions, delta_iou)
 
-                loss = self.policy.learn(imgs, bboxes, actions, transform_bboxes, rewards)
+                    if j == self.num_rl_steps - 1:
+                        not_end = 0
+                    else:
+                        not_end = 1
+                    loss = self.policy.learn(imgs, bboxes, actions, transform_bboxes, rewards, not_end)
 
-                losses.add(np.mean(loss))
-                batch_time.add(time.time() - start)
+                    losses.add(np.mean(loss))
+                    batch_time.add(time.time() - start)
 
-                if iters % self.print_freq == 0:
-                    logger.info('Train: [{0}][{1}/{2}]\t'
-                                'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                                'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                                'Loss {losses.val:.3f} ({losses.avg:.3f})\t'.format(
-                                epoch + 1, i, len(train_dataloader),
-                                batch_time=batch_time,
-                                data_time=data_time,
-                                losses=losses)
-                    )
+                    if iters % self.print_freq == 0:
+                        logger.info('Train: [{0}][{1}/{2}]\t'
+                                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                                    'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                                    'Loss {losses.val:.3f} ({losses.avg:.3f})\t'.format(
+                                    epoch + 1, i, len(train_dataloader),
+                                    batch_time=batch_time,
+                                    data_time=data_time,
+                                    losses=losses)
+                        )
 
-                if iters % self.ckpt_freq == 0:
-                    state = {
-                        'iter': iters,
-                        'state_dict': self.policy.eval_net.state_dict()
-                    }
-                    self._save_model(state)
-                    logger.info("Save Checkpoint at {} iters".format(iters))
+                    if iters % self.ckpt_freq == 0:
+                        state = {
+                            'iter': iters,
+                            'state_dict': self.policy.eval_net.state_dict()
+                        }
+                        self._save_model(state)
+                        logger.info("Save Checkpoint at {} iters".format(iters))
 
-                if iters % self.target_network_update_freq == 0:
-                    self.policy.update_target_network()
-                    logger.info("Update Target Network at {} iters".format(iters))
+                    if iters % self.target_network_update_freq == 0:
+                        self.policy.update_target_network()
+                        logger.info("Update Target Network at {} iters".format(iters))
 
-                start = time.time()
-                iters += 1
+                    start = time.time()
+                    bboxes = transform_bboxes
+                    iters += 1
 
     def val(self, val_data_loader):
         pass
@@ -130,53 +137,53 @@ class Player(object):
         transform_bboxes = bboxes.copy()
         for i, action in enumerate(actions):
             if action == 1:
-                transform_bboxes[i, 1] += transform_bboxes[i, 1] * 0.02
+                transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
             elif action == 2:
-                transform_bboxes[i, 1] += transform_bboxes[i, 1] * 0.05
+                transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
             elif action == 3:
-                transform_bboxes[i, 1] += transform_bboxes[i, 1] * 0.1
+                transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
             elif action == 4:
-                transform_bboxes[i, 2] += transform_bboxes[i, 2] * 0.02
+                transform_bboxes[i, 2] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
             elif action == 5:
-                transform_bboxes[i, 2] += transform_bboxes[i, 2] * 0.05
+                transform_bboxes[i, 2] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
             elif action == 6:
-                transform_bboxes[i, 2] += transform_bboxes[i, 2] * 0.1
+                transform_bboxes[i, 2] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
             elif action == 7:
-                transform_bboxes[i, 3] += transform_bboxes[i, 3] * 0.02
+                transform_bboxes[i, 3] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
             elif action == 8:
-                transform_bboxes[i, 3] += transform_bboxes[i, 3] * 0.05
+                transform_bboxes[i, 3] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
             elif action == 9:
-                transform_bboxes[i, 3] += transform_bboxes[i, 3] * 0.1
+                transform_bboxes[i, 3] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
             elif action == 10:
-                transform_bboxes[i, 4] += transform_bboxes[i, 4] * 0.02
+                transform_bboxes[i, 4] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
             elif action == 11:
-                transform_bboxes[i, 4] += transform_bboxes[i, 4] * 0.05
+                transform_bboxes[i, 4] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
             elif action == 12:
-                transform_bboxes[i, 4] += transform_bboxes[i, 4] * 0.1
+                transform_bboxes[i, 4] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
             elif action == 13:
-                transform_bboxes[i, 1] -= transform_bboxes[i, 1] * 0.02
+                transform_bboxes[i, 1] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
             elif action == 14:
-                transform_bboxes[i, 1] -= transform_bboxes[i, 1] * 0.05
+                transform_bboxes[i, 1] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
             elif action == 15:
-                transform_bboxes[i, 1] -= transform_bboxes[i, 1] * 0.1
+                transform_bboxes[i, 1] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
             elif action == 16:
-                transform_bboxes[i, 2] -= transform_bboxes[i, 2] * 0.02
+                transform_bboxes[i, 2] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
             elif action == 17:
-                transform_bboxes[i, 2] -= transform_bboxes[i, 2] * 0.05
+                transform_bboxes[i, 2] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
             elif action == 18:
-                transform_bboxes[i, 2] -= transform_bboxes[i, 2] * 0.1
+                transform_bboxes[i, 2] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
             elif action == 19:
-                transform_bboxes[i, 3] -= transform_bboxes[i, 3] * 0.02
+                transform_bboxes[i, 3] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
             elif action == 20:
-                transform_bboxes[i, 3] -= transform_bboxes[i, 3] * 0.05
+                transform_bboxes[i, 3] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
             elif action == 21:
-                transform_bboxes[i, 3] -= transform_bboxes[i, 3] * 0.1
+                transform_bboxes[i, 3] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
             elif action == 22:
-                transform_bboxes[i, 4] -= transform_bboxes[i, 4] * 0.02
+                transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
             elif action == 23:
-                transform_bboxes[i, 4] -= transform_bboxes[i, 4] * 0.05
+                transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
             elif action == 24:
-                transform_bboxes[i, 4] -= transform_bboxes[i, 4] * 0.1
+                transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
         return transform_bboxes
 
     def _compute_iou(self, gts, bboxes):
