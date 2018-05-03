@@ -21,6 +21,7 @@ def init_log(name, level = logging.INFO):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
+
 class AveMeter():
     def __init__(self, size):
         self.size = size
@@ -40,6 +41,7 @@ class AveMeter():
             self.avg = sum(self.elems) / (self.opr+1)
         self.opr += 1
 
+
 def accuracy(output, target, k=1):
     output, target = output.reshape(-1), target.reshape(-1)
     inds = np.argsort(output)[-k:]
@@ -51,13 +53,34 @@ def accuracy(output, target, k=1):
     return correct * 100.0 / k
 
 
-def adjust_learning_rate(optimizer, epoch, lr, interval=None, epochs=None, alpha=.1):
+def adjust_learning_rate(optimizer, epoch, 
+            learning_rate=None, interval=None, epochs=None, decay=.1):
     if interval is not None:
-        lr = lr * (alpha ** (epoch // interval))
+        learning_rate *= (decay ** (epoch // interval))
     else:
-        for i in epochs:
-            if i >= epoch:
-                lr *= alpha
+        for decay_epoch in epochs:
+            if decay_epoch <= epoch:
+                learning_rate *= decay
     for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+        param_group['lr'] = learning_rate
     return
+
+def ensure_file(filename):
+    assert os.path.isfile(filename), '{} is not a valid file.'.format(filename)
+
+
+def ensure_dir(dirpath):
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath)
+
+
+def cocoval(ann_file, res_file, ann_type='bbox'):
+    from pycocotools.coco import COCO
+    from pycocotools.cocoeval import COCOeval
+    coco_gt = COCO(ann_file)
+    coco_dt = coco_gt.loadRes(res_file)
+    imgIds = sorted(coco_gt.getImgIds())
+    coco_eval = COCOeval(coco_gt, coco_dt)
+    coco_eval.evaluate()
+    coco_eval.accumulate()
+    coco_eval.summarize()

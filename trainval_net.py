@@ -6,149 +6,182 @@ import _init_paths
 import os
 import sys
 import time
+import logging
 import argparse
 import numpy as np
+from config import Config
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
-import torchvision.transforms as transforms
 from torch.autograd import Variable, grad
 from torch.utils.data.sampler import Sampler
 from torch.utils.data.distributed import DistributedSampler
-import logging
 
 from datasets.RL_coco_dataset import COCODataset, COCOTransform
 from datasets.RL_coco_loader import COCODataLoader
 from model.Reinforcement.resnet import resnet101
-from model.Reinforcement.utils import init_log, AveMeter, accuracy, adjust_learning_rate
+from model.Reinforcement.action import Action
+from model.Reinforcement.utils import *
 
 def parse_args():
 	"""
 	Parse input arguments
 	"""
 	parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
-	parser.add_argument('--data_dir', default='',
-						help='where you put images')
-	parser.add_argument('--save_dir', default='./snapshot',
-						help='where you save your checkpoints')
-	parser.add_argument('--ann_file', default='',
-						help='where you put official json')
-	parser.add_argument('--dt_file', default='',
-						help='where you put our json')
-	parser.add_argument('--resume', default="",
-						help='where you save checkpoint')
-	parser.add_argument('--pretrain', default='',
-						help='where you save pretrain model')
-	parser.add_argument('--start_epoch', dest='start_epoch',
-						help='starting epoch',
-						default=0, type=int)
-	parser.add_argument('--epochs', dest='max_epochs',
-						help='number of epochs to train',
-						default=10, type=int)
-	parser.add_argument('--mGPUs', dest='mGPUs',
-						help='whether use multiple GPUs',
-						action='store_true')
-	parser.add_argument('--evaluate', dest='evaluate',
-						help='evaluate mode',
-						action='store_true')
+	parser.add_argument('-sd', '--save-dir', type=str,
+						default='', help='where you save checkpoint')
+	parser.add_argument('-re', '--resume', type=str,
+						default='', help='enable the continue from a specific model')
 
-	parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
-						metavar='LR', help='initial learning rate')
-	parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-						help='momentum')
-	parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
-						metavar='W', help='weight decay (default: 1e-4)')
-	parser.add_argument('--batch-size', default=24, type=int,
-						help="batch_size (default: 24)")
+	parser.add_argument('--test', dest='test', action='store_true',
+						help='enable the test mode')
+	parser.add_argument('--mGPUs', dest='mGPUs', action='store_true',
+						help='whether use multiple GPUs')
+
+	parser.add_argument('-e', '--epoch', default=0, type=int,
+						help='test model epoch num (default: 0)')
+	parser.add_argument('-b', '--batch-size', default=24, type=int,
+						help='batch_size (default: 24)')
 	parser.add_argument('--log-interval', default=10, type=int,
-						help="iter logger info interval (default: 10)")
+						help='iter logger info interval (default: 10)')
 
 	args = parser.parse_args()
 	return args
 
 def main():
+	global args, config
+
+	# initialize logger 
 	init_log('global', logging.INFO)
 	logger = logging.getLogger('global')
-
+	
+	# initialize arguments
 	args = parse_args()
 	logger.info(args)
+	phase = 'minival' if args.test else 'train'
+	logger.info('Now using phase: ' + phase)
 
-	normalize = transforms.Normalize(mean=[0.4485295, 0.4249905, 0.39198247],
-									 std=[0.12032582, 0.12394787, 0.14252729])
+	# initialize config
+	config = Config(phase=phase)
+
+	# create actions
+	bbox_action = Action(delta=config.act_delta,
+						iou_thres=config.act_iou_thres,
+						wtrans=config.act_wtrans)
+	# create data_loader
+	normalize_fn = config.normalize
+	if phase == 'train':
+		transform_fn = COCOTransform(config.train_img_short, config.train_img_size, flip=config.train_flip) 
+	else:
+		transform_fn = COCOTransform(config.test_img_short, config.test_img_size, flip=config.test_flip)
 	dataset = COCODataset(
-			args.data_dir, 
-			args.ann_file, 
-			args.dt_file, 
-			COCOTransform([800], 1200, flip=False),
-			normalize_fn=normalize)
+		config.data_dir, 
+		config.ann_file, 
+		config.dt_file,
+		bbox_action=bbox_action,
+		transform_fn=transform_fn,
+		normalize_fn=normalize_fn)
 	dataloader = COCODataLoader(
-			dataset, 
-			batch_size=args.batch_size, 
-			shuffle=True, 
-			num_workers=6)
+		dataset, 
+		batch_size=args.batch_size, 
+		shuffle=config.data_shuffle, 
+		num_workers=config.num_workers,
+		pin_memory=config.data_pin_memory)
 
-	model = resnet101()
+	# create model
+	model = resnet101(num_acts=bbox_action.num_acts)
 	logger.info(model)
 
-	if args.pretrain:
-		assert os.path.isfile(args.pretrain), '{} is not a valid file'.format(args.pretrain)
-		checkpoint = torch.load(args.pretrain)
+	# load pretrained model
+	if config.pretrained_model:
+		ensure_file(config.pretrained_model)
+		checkpoint = torch.load(config.pretrained_model)
 		model.load_state_dict(checkpoint, strict=False)
 
-	if args.resume:
-		assert os.path.isfile(args.resume), '{} is not a valid file'.format(args.resume)
-		checkpoint = torch.load(args.resume)
-		start_epoch = checkpoint['epoch']
-		model.load_state_dict(checkpoint['state_dict'], strict=False)
-
+	# adjust learning rate of layers in the model
 	model.freeze_layer()
-	logger.info("Layers already freezed.")
-
 	params = []
 	for i, (key, value) in enumerate(dict(model.named_parameters()).items()):
 		if value.requires_grad:
 			if 'bias' in key:
-				params += [{'params': [value], 'lr': args.lr * .5, 'weight_decay': 0}]
+				params += [{'params': [value], 'lr': config.learning_rate * 2., 'weight_decay': 0}]
 			else:
-				params += [{'params': [value], 'lr': args.lr, 'weight_decay': args.weight_decay}]
+				params += [{'params': [value], 'lr': config.learning_rate, 'weight_decay': config.weight_decay}]
 
-	# trainable_params = [p for p in model.parameters() if p.requires_grad]
-	optimizer = torch.optim.SGD(params, args.lr,
-								momentum=args.momentum,
-								weight_decay=args.weight_decay)
+	# SGD optimizer
+	optimizer = torch.optim.SGD(params, config.learning_rate,
+								momentum=config.momentum,
+								weight_decay=config.weight_decay)
 
+	# enable multi-GPU training
 	if args.mGPUs:
 		model = nn.DataParallel(model)
+
 	model = model.cuda()
 
-	if args.evaluate:
-		Evaluate(args, model, dataloader, logger)
+	# ensure save directory
+	save_dir = args.save_dir if args.save_dir else config.save_dir
+	ensure_dir(save_dir)
+	# main function
+	if phase == 'train':
+		start_epoch = 0
+		# if continue from a breakpoint
+		if args.resume:
+			ensure_file(args.resume)
+			checkpoint = torch.load(args.resume)
+			start_epoch = checkpoint['epoch']
+			model.load_state_dict(checkpoint['state_dict'], strict=False)
+		# start training
+		for epoch in range(start_epoch, config.train_max_epoch):
+			adjust_learning_rate(optimizer, epoch, 
+				learning_rate=config.learning_rate, 
+				epochs=config.train_lr_decay)
+			#
+			Train(epoch, model, dataloader, optimizer)
+			Savecheckpoint(save_dir, epoch, model)
 	else:
-		for epoch in range(args.max_epochs):
-			adjust_learning_rate(optimizer, epoch, args.lr, interval=5)
-			Train(args, epoch, model, dataloader, optimizer, logger)
-			Savecheckpoint(args, epoch, model)
+		resume = save_dir + 'epoch_{}.pth'.format(args.epoch)
+		ensure_file(resume)
+		checkpoint = torch.load(resume)
+		start_epoch = checkpoint['epoch']
+		model.load_state_dict(checkpoint['state_dict'], strict=False)
+		#
+		dt_boxes = Evaluate(model, dataloader, bbox_action)
+		ensure_dir(os.path.join(args.save_dir, 'jsons'))
+		filename = 'detections_{}_epoch{}_results.json'.format((args.phase, start_epoch))
+		filename = os.path.join(args.save_dir, 'jsons', filename)
+		json.dump(dt_boxes, open(filename, 'w'))
+		cocoval(args.ann_file, filename)
+		
 	logger.info('Exit without error.')
 
 
-def Savecheckpoint(args, epoch, model):
+def Savecheckpoint(save_dir, epoch, model):
+	global args, config
+
+	# model differ when on multi-GPU
 	if args.mGPUs:
 		model_state_dict = model.module.state_dict()
 	else:
 		model_state_dict = model.state_dict()
+
+	# save checkpoint
 	torch.save({
 			'epoch': epoch,
 			'state_dict': model_state_dict}, 
-		os.path.join(args.save_dir, 'epoch_%d.pth' % (epoch + 1)) )
+		os.path.join(save_dir, 'epoch_%d.pth' % (epoch + 1)) )
 
 
-def Evaluate(args, model, val_loader, logger):
+def Evaluate(model, val_loader, bbox_action):
+	global args, config
+	logger = logging.getLogger('global')
+
 	losses = AveMeter(100)
 	batch_time = AveMeter(100)
 	data_time = AveMeter(100)
-	Prec1 = AveMeter(len(val_loader))
-	Prec5 = AveMeter(len(val_loader))
+	#Prec1 = AveMeter(len(val_loader))
+	#Prec5 = AveMeter(len(val_loader))
+	Preck = AveMeter(len(val_loader))
 	dt_boxes = []
 	model.eval()
 
@@ -165,97 +198,74 @@ def Evaluate(args, model, val_loader, logger):
 		pred, loss, _ = model(img_var, bboxes, targets, weights)
 		loss = loss.mean()
 
+		# get output boxes
+		bboxes = inp[1].numpy()
+		bboxes[:, :, 3] = bboxes[:, :, 3] - bboxes[:, :, 1]
+		bboxes[:, :, 4] = bboxes[:, :, 4] - bboxes[:, :, 2]
+		batch_size = bboxes.shape[0]
+
 		# get output datas
-		pred = pred.cpu().data.numpy()
-		targets = targets.cpu().data.numpy()
+		preds = pred.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
+		targets = targets.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
 
-		# apply action to the bboxes
-		def move_from_act(bboxes, preds, targets, k, useCats=True):
-			# pred: num_box * 24
-			delta = [1., .5, .1]
-			numacts = 4 * len(delta) * 2
-			num = 0
-			actDeltas = np.zeros((numacts, 4), dtype=np.float32)
-			for i in range(4):
-				for j in range(len(delta)):
-					actDeltas[num][i] = delta[j] * .1
-					num += 1
-					actDeltas[num][i] = -delta[j] * .1
-					num += 1
-			
-			preds = preds.reshape(-1, 24).transpose(1, 0)
-			targets = targets.reshape(-1, 24).transpose(1, 0)
-			if useCats:
-				for act_id, pred in enumerate(preds):
-					inds = np.argsort(pred)[-k:]
-					for idx in inds:
-						x, y, w, h = bboxes[idx][:4]
-						delta = actDeltas[act_id]
-						bboxes[idx][:4] = bboxes[idx][:4] + delta * np.array([w, h, w, h])
-			else:
-				num_boxes = preds.shape[1]
-				vis = [None] * num_boxes
-				inds = np.flip(np.argsort(preds.reshape(-1)), axis=0)
-				cnt, correct = 0, 0
-				for num in inds:
-					act_id = num // num_boxes
-					idx = num % num_boxes
-					assert(preds.reshape(-1)[num] == preds[act_id][idx])
-					x, y, w, h = bboxes[idx][:4]
-					delta = actDeltas[act_id]
-					if vis[idx] is None:
-						vis[idx] = 1
-						cnt += 1
-						if targets[act_id][idx] == 1:
-							correct += 1
-							bboxes[idx][:4] = bboxes[idx][:4] + delta * np.array([w, h, w, h])
-					#if cnt >= k:
-						#break
-			logger.info(correct * 100. / cnt)
-			return bboxes
-		
-		maxk = 40
+		# get new boxes
+		newboxes, preck = bbox_action.move_from_act(bboxes[:,:,1:5], preds, targets, maxk=1)
+		bboxes[:,:,1:5] = newboxes
+		bboxes = bboxes.reshape(-1, bboxes.shape[-1]).astype(float)
 
-		bboxes = inp[1].numpy().reshape(-1, 8)[:, 1:] 
-		bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 0]
-		bboxes[:, 3] = bboxes[:, 3] - bboxes[:, 1]
-		bboxes = move_from_act(bboxes, pred, targets, maxk, useCats=False)
+		# generate detection results
 		im_infos = inp[3]
 		for j, bbox in enumerate(bboxes):
-			bid = int(inp[1].numpy().reshape(-1, 8)[j][0])
+			bid = int(bbox[0])
 			scale = im_infos[bid][2]
-			bbox[:4] /= scale
+			bbox[1:5] /= scale
 			
+			dtbox = {
+				'bbox': [float(bbox[1]), float(bbox[2]), float(bbox[3]), float(bbox[4])],
+				'score': float(bbox[5]),
+				'category_id': int(bbox[6]),
+				'image_id': int(bbox[7])
+			}
+			'''
 			dtbox = {
 				'bbox': [float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])],
 				'score': float(bbox[4]),
 				'category_id': int(bbox[5]),
 				'image_id': int(bbox[6])
 			}
+			'''
 			dt_boxes.append(dtbox)
 
-		losses.add(loss.data[0])
-		Prec1.add(accuracy(pred, targets, 1))
-		Prec5.add(accuracy(pred, targets, maxk))
+		losses.add(loss.item())
+		#Prec1.add(accuracy(preds, targets, 1))
+		Preck.add(preck)
 		batch_time.add(time.time() - start)
 		if i % args.log_interval == 0:
 			logger.info('Test: [{0}/{1}]\t'
 						'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
 						'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-						'Prec1 {Prec1.val:.3f} ({Prec1.avg:.3f})\t'
-						'Prec5 {Prec5.val:.3f} ({Prec5.avg:.3f})\t'.format(
-							i, len(val_loader),
+						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
+						#'Prec1 {Prec1.val:.3f} ({Prec1.avg:.3f})\t'
+						'Preck {Preck.val:.3f} ({Preck.avg:.3f})\t'
+						#'Prec5 {Prec5.val:.3f} ({Prec5.avg:.3f})\t'
+						.format(i, len(val_loader),
 							batch_time=batch_time,
 							data_time=data_time,
-							Prec1=Prec1,
-							Prec5=Prec5)
+							losses=losses,
+							#Prec1=Prec1,
+							#Prec5=Prec5,
+							Preck=Preck)
 						)
 		start = time.time()
-	logger.info('Prec1: %.3f Prec5: %.3f' % (Prec1.avg, Prec5.avg))
-	import json
-	json.dump(dt_boxes, open(os.path.join(args.save_dir,'results_noCat.json'), 'w'))
+	#logger.info('Prec1: %.3f Prec5: %.3f' % (Prec1.avg, Prec5.avg))
+	logger.info('Preck: %.3f' % (Preck.avg))
+	return dtboxes
 
-def Train(args, epoch, model, train_loader, optimizer, logger):
+
+def Train(epoch, model, train_loader, optimizer):
+	global args, config
+	logger = logging.getLogger('global')
+
 	losses = AveMeter(100)
 	noweight_losses = AveMeter(100)
 	batch_time = AveMeter(100)
@@ -280,8 +290,8 @@ def Train(args, epoch, model, train_loader, optimizer, logger):
 		loss.backward()
 		optimizer.step()
 		
-		losses.add(loss.data[0])
-		noweight_losses.add(noweight_loss.data[0])
+		losses.add(loss.item())
+		noweight_losses.add(noweight_loss.item())
 		batch_time.add(time.time() - start)
 		if i % args.log_interval == 0:
 			logger.info('Train: [{0}][{1}/{2}]\t'

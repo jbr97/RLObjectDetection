@@ -3,28 +3,35 @@ from __future__ import division
 import os
 import PIL
 import math
+import time
 import json
+import random
 import numpy as np
 from collections import defaultdict
+import logging
 
 import torch
-from torch.utils.data import Dataset
 import torchvision.transforms as transforms
+from torch.utils.data import Dataset
 from pycocotools.coco import COCO
 from pycocotools.mask import iou as IoU
-# TODO from models.Reinforcement.RL_actions import action_generator
+
+from datasets.tools.pnw_static import get_weights_statistics
 
 class COCODataset(Dataset):
 	# TODO
 	"""
 	"""
-	def __init__(self, root_dir, ann_file, dt_file, transform_fn = None, normalize_fn=None):
+	def __init__(self, root_dir, ann_file, dt_file, bbox_action, transform_fn=None, normalize_fn=None):
 		# TODO
 		"""
 		"""
+		logger = logging.getLogger('global')
+
 		self.root_dir = root_dir
 		self.transform_fn = transform_fn
 		self.normalize_fn = normalize_fn
+		logger.info('Loading annotation files...')
 		self.cocoGt = COCO(ann_file)
 		self.imgIds = sorted(self.cocoGt.getImgIds())
 		self.catIds = sorted(self.cocoGt.getCatIds())
@@ -32,6 +39,7 @@ class COCODataset(Dataset):
 		self.cls2cat = dict([(i, c) for i,c in enumerate(self.catIds)])
 		
 		## get groud-truth boxes
+		logger.info('Creating ground-truth bounding boxes...')
 		self.annIds = self.cocoGt.getAnnIds(imgIds=self.imgIds, catIds=self.catIds)
 		self.gt_boxes_list = self.cocoGt.loadAnns(self.annIds)
 		self.gt_boxes = defaultdict(list)
@@ -39,41 +47,34 @@ class COCODataset(Dataset):
 			self.gt_boxes[gt['image_id'], gt['category_id']].append(gt)
 
 		## loading initial detection boxes from json file
+		logger.info('Loading Detection bounding boxes...')
 		self.dt_boxes_list = json.load(open(dt_file, 'r'))
 		self.dt_boxes = defaultdict(list)
 		for dt in self.dt_boxes_list:
 			self.dt_boxes[dt['image_id'], dt['category_id']].append(dt)
 
-		## TODO this procedure need to be moved
-		boxdim = 4
-		alpha = .1
-		delta = [1., .5, .1]
-		numacts = len(delta) * boxdim * 2
-		self.actIds = np.array(range(numacts))
-		self.actDeltas = np.zeros((numacts, boxdim), dtype=np.float32)
-		num = 0
-		for i in range(boxdim):
-			for j in range(len(delta)):
-				self.actDeltas[num][i] = delta[j] * alpha
-				num += 1
-				self.actDeltas[num][i] = -delta[j] * alpha
-				num += 1
+		## define bbox actions
+		self.bbox_action = bbox_action
+		## Prepare the statistics of Delta-IoUs
+		logger.info('Preparing statistics of Delta-IoUs (weights)...')
+
+		self.pos_tot, self.neg_tot, \
+		self.pos_weights, self.neg_weights = \
+			get_weights_statistics(
+				self.imgIds, self.catIds,
+				self.dt_boxes, self.gt_boxes, self.bbox_action, 
+				shuffle=True, maxDets=5000, num_workers=32)
+
+		self.pos_wratio = (self.pos_tot + self.neg_tot) / self.pos_weights / 2.
+		self.neg_wratio = (self.pos_tot + self.neg_tot) / self.neg_weights / 2.
+
+		logger.info('weight ratios: '+str((self.pos_wratio, self.neg_wratio)))
+		logger.info('COCO datasets created.')
 
 
 	def __len__(self):
 		return len(self.imgIds)
 
-
-	def _computeIoU(self, b, gt_list):
-		# TODO this function need to be moved
-		gt = [g['bbox'] for g in gt_list]
-		iscrowd = [int(g['iscrowd']) for g in gt_list]
-		if len(gt) == 0:
-			return 0, -1
-		ious = IoU([b], gt, iscrowd)
-
-		return ious.max(), ious.argmax()
-			
 
 	def __getitem__(self, idx):
 		'''
@@ -105,34 +106,39 @@ class COCODataset(Dataset):
 		generate_labels = []
 		for cat_id in self.catIds:
 			for dt_box in self.dt_boxes[img_id, cat_id]:
+				#gtboxes = self.gt_boxes[img_id, cat_id]
 				bbox = dt_box['bbox']
-				x, y, w, h = bbox
-				score = dt_box['score']
-				cls_id = self.cat2cls[cat_id]
-				# TODO this function need to be moved
-				origin_iou, gt_idx = self._computeIoU(bbox, self.gt_boxes[img_id, cat_id])
+				w, h = bbox[2], bbox[3]
+
+				gtboxes = [g['bbox'] for g in self.gt_boxes[img_id, cat_id]]
+				iscrowd = [int(g['iscrowd']) for g in self.gt_boxes[img_id, cat_id]]
+				if len(gtboxes) == 0:
+					gtboxes = [[0,0,0,0]]
+					iscrowd = [0]
+
+				origin_ious = IoU([bbox], gtboxes, iscrowd)
 				
 				generate_label = []
 				## enumerate actions and apply to the bbox
-				for act_id in self.actIds:
-					delta = self.actDeltas[act_id]
-					new_bbox = bbox + delta * np.array([w, h, w, h])
-					# TODO this function need to be moved
-					if gt_idx == -1:
-						new_iou = 0
-					else:
-						new_iou, _ = self._computeIoU(new_bbox, [self.gt_boxes[img_id, cat_id][gt_idx]])
-						assert(_ == 0)
-					dious = new_iou - origin_iou
-					if dious > 0:
+				for act_id, act_delta in enumerate(self.bbox_action.actDeltas):
+					new_bbox = bbox + act_delta * np.array([w, h, w, h])
+					new_ious = IoU([new_bbox], gtboxes, iscrowd)
+					delta_iou = new_ious.max() - origin_ious.max()
+
+					if delta_iou > self.bbox_action.iou_thres:
 						label = 1
+						weight = self.bbox_action.wtrans(delta_iou)
+						weight *= self.pos_wratio
 					else:
 						label = -1
-					#label = int(dious > 0) * 2 - 1
-					weight = math.exp(math.fabs(dious))
+						weight = self.bbox_action.wtrans(delta_iou)
+						weight *= self.neg_wratio
+	
 					generate_label.append([act_id, label, weight])
-				
-				#generate_bboxes.append(bbox+[score]+[cls_id])
+
+				## attach the generated bbox and labels
+				score = dt_box['score']
+				cls_id = self.cat2cls[cat_id]
 				bbox[2] += bbox[0]
 				bbox[3] += bbox[1]
 				generate_bboxes.append(bbox+[score]+[cat_id]+[img_id])
@@ -150,27 +156,6 @@ class COCODataset(Dataset):
 		img_data = to_tensor(img)
 		if self.normalize_fn:
 			img_data = self.normalize_fn(img_data)
-
-		## for each action, normalize the weights
-		# TODO need a function
-		num_boxes = generate_labels.shape[0]
-
-		for act_id in self.actIds: 
-			pos_cnt, neg_cnt = 0, 0
-			pos_weight, neg_weight = 0, 0
-			for i in range(num_boxes):
-				# positive samples
-				if generate_labels[i][act_id][1] == 1:
-					pos_cnt += 1
-					pos_weight += generate_labels[i][act_id][2]
-				else:
-					neg_cnt += 1
-					neg_weight += generate_labels[i][act_id][2]
-			for i in range(num_boxes):
-				if generate_labels[i][act_id][1] == 1:
-					generate_labels[i][act_id][2] *= (pos_cnt+neg_cnt) / pos_weight / 2
-				else:
-					generate_labels[i][act_id][2] *= (pos_cnt+neg_cnt) / neg_weight / 2
 
 		## labels to tensor		   
 		generate_bboxes = torch.FloatTensor(generate_bboxes)
