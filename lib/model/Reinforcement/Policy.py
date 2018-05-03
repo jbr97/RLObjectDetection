@@ -76,25 +76,30 @@ class DQN(object):
         # self._adjust_learning_rate()
 
         imgs = Variable(imgs.cuda())
-        bboxes = Variable(torch.FloatTensor(bboxes[:5]).contiguous().cuda())
-        actions = Variable(torch.LongTensor(np.array(actions)).cuda()).view(self.batch_size, 1)
-        transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:5]).contiguous().cuda())
-        rewards = Variable(torch.FloatTensor(rewards).cuda()).view(self.batch_size, 1)
+        input_dim = bboxes.shape[0]
+        bboxes = Variable(torch.FloatTensor(bboxes[:, :5]).contiguous().cuda())
+        actions = Variable(torch.LongTensor(np.array(actions)).cuda())
+        transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:, :5]).contiguous().cuda())
+        rewards = Variable(torch.FloatTensor(rewards).cuda()).view(input_dim, 1)
 
-        Q_eval = self.eval_net(imgs, bboxes).gather(1, actions)
+        Q_output = self.eval_net(imgs, bboxes)
+        # logger.info("Shape of Q_output: {}".format(Q_output.shape))
+        # logger.info("Shape of actions: {}".format(actions.shape))
+        Q_eval = Q_output[range(Q_output.shape[0]), actions].view(input_dim, 1)
+        # logger.info("Qeval : {}".format(Q_eval.shape))
 
         Q_next = self.target_net(imgs, transform_bboxes).detach()
-        Q_next_mask = Q_next.max(1)[0].view(self.batch_size, 1)
+        Q_next_mask = Q_next.max(1)[0].view(input_dim, 1)
         Q_target = rewards + self.gamma * Q_next_mask * not_end
 
         loss = self.loss_func(Q_eval, Q_target)
-
+        # logger.info("Loss {}".format(loss))
         self.optimizer.zero_grad()
         loss.backward()
 
         self.optimizer.step()
 
-        return loss.data.numpy()
+        return loss.cpu().data.numpy()
 
     def _adjust_learning_rate(self):
         if self.iters > 80000:

@@ -49,7 +49,7 @@ class Player(object):
         data_time = AveMeter(100)
 
         start = time.time()
-        for epoch in range(1, self.max_epoch+1):
+        for epoch in range(self.max_epoch):
             for i, inp in enumerate(train_dataloader):
                 # suppose we have img, bboxes, gts
                 # bboxes:[ids, x1, y1, x2, y2, label]
@@ -60,6 +60,7 @@ class Player(object):
                 gts = inp[2]
 
                 for j in range(self.num_rl_steps):
+                    logger.info("i : {} j : {}".format(i, j))
                     # get actions from eval_net
                     actions = self.policy.get_action(imgs, bboxes).tolist()
 
@@ -68,21 +69,25 @@ class Player(object):
                         if np.random.uniform() > self.epsilon:
                             actions[i] = np.random.randint(0, self.num_actions + 1)
                     self.epsilon = iters / self.eps_iter
-                    logger.info(actions)
+                    # logger.info(len(actions))
 
                     # compute iou for epoch bbox before and afer action
                     # we can get delta_iou
                     # bboxes, actions, transform_bboxes, delta_iou
                     transform_bboxes = self._transform(bboxes, actions)
                     old_iou = self._compute_iou(gts, bboxes)
-                    logger.info(old_iou)
+                    # logger.info(len(old_iou))
                     new_iou = self._compute_iou(gts, transform_bboxes)
-                    logger.info(new_iou)
+                    # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
                     # sample bboxes for a positive and negitive balance
                     bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)
-
+                    # logger.info("bbox shape: {}".format(bboxes.shape))
+                    # logger.info("action shape: {}".format(len(actions)))
+                    # logger.info("transform_bboxes: {}".format(transform_bboxes.shape))
+                    # logger.info("delta_iou shape: {}".format(len(delta_iou)))
+                    # logger.info(actions)
                     rewards = self._get_rewards(actions, delta_iou)
 
                     if j == self.num_rl_steps - 1:
@@ -229,9 +234,10 @@ class Player(object):
         :param delta_iou: [N]
         :return: sampled result
         """
-        fg_inds = np.where(np.array(delta_iou) >= 0)
-        bg_inds = np.where(np.array(delta_iou) < 0)
-
+        fg_inds = np.where(np.array(delta_iou) >= 0)[0]
+        bg_inds = np.where(np.array(delta_iou) < 0)[0]
+        # logger.info("fg num: {}".format(len(fg_inds)))
+        # logger.info("bg num: {}".format(len(bg_inds)))
         fg_num = int(self.sample_num * self.sample_ratio)
         if len(fg_inds) > fg_num:
             fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
@@ -241,7 +247,7 @@ class Player(object):
             bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
 
         inds = np.array(np.append(fg_inds, bg_inds))
-        logger.info(inds)
+        # logger.info(inds)
         return bboxes[inds, :], np.array(actions)[inds].tolist(), tranform_bboxes[inds, :], np.array(delta_iou)[inds].tolist()
 
     def _get_rewards(self, actions, delta_iou):
