@@ -32,6 +32,7 @@ class COCODataLoader(torch.utils.data.DataLoader):
         ground_truth_bboxes = zip_batch[2]
         unpad_image_sizes = zip_batch[3]
         filenames = zip_batch[4]
+        img_ids = zip_batch[5]
 
         max_img_h = max([_.shape[-2] for _ in images])
         max_img_w = max([_.shape[-1] for _ in images])
@@ -85,4 +86,5 @@ class COCODataLoader(torch.utils.data.DataLoader):
                 padded_predict_bboxes,
                 padded_gt_bboxes,
                 unpad_image_sizes,
-                filenames]
+                filenames,
+                img_ids]

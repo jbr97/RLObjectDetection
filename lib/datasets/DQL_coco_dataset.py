@@ -111,7 +111,8 @@ class COCODataset(Dataset):
                 bboxes,
                 gts,
                 [new_image_h, new_image_w, resize_scale, image_h, image_w],
-                filename]
+                filename,
+                img_id]
 
 class COCOTransform(object):
     def __init__(self, sizes, max_size, flip=False):
