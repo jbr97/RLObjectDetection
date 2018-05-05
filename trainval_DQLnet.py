@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import sys
 import json
 import argparse
 import logging
@@ -25,7 +26,9 @@ def main():
     logger = logging.getLogger('global')
 
     #args = parse_args()
-    cfg = load_config("config.json")
+    json_file = sys.argv[1]
+    logger.info(json_file)
+    cfg = load_config(json_file)
     logger.info("config {}".format(cfg))
 
     normalize = transforms.Normalize(mean=[0.4485295, 0.4249905, 0.39198247],

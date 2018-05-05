@@ -18,6 +18,6 @@
   "lr_decay": 0.97,
   "decay_epoch": 1,
   "gamma": 1,
-  "pretrain": "data/pretrained/faster_rcnn_new.pth",
+  "pretrain": "",
   "resume": "ckpt/model-100.pth"
 }

@@ -88,7 +88,8 @@ class Player(object):
                     # logger.info("delta_iou shape: {}".format(len(delta_iou)))
                     # logger.info(actions)
                     rewards = self._get_rewards(actions, delta_iou)
-
+                    zero_num = len([u for u in actions if u == 0])
+                    logger.info("the num of action0 is {}".format(zero_num))
                     if j == self.num_rl_steps - 1:
                         not_end = 0
                     else:
@@ -124,7 +125,7 @@ class Player(object):
                     bboxes = transform_bboxes
                     iters += 1
 
-    def val(self, val_data_loader):
+    def eval(self, val_data_loader):
         tot_g_0 = 0
         tot_ge_0 = 0
         tot = 0
@@ -291,7 +292,7 @@ class Player(object):
         rewards = []
         for i in range(len(actions)):
             if actions[i] == 0:
-                rewards.append(0.4)
+                rewards.append(0.05)
             else:
                 rewards.append(math.tan(delta_iou[i] / 0.14))
         return rewards
