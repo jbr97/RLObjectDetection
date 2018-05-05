@@ -60,14 +60,13 @@ class Player(object):
                 gts = inp[2]
 
                 for j in range(self.num_rl_steps):
-                    logger.info("i : {} j : {}".format(i, j))
                     # get actions from eval_net
                     actions = self.policy.get_action(imgs, bboxes).tolist()
 
                     # replace some action in random policy
-                    for i in range(len(actions)):
+                    for idx in range(len(actions)):
                         if np.random.uniform() > self.epsilon:
-                            actions[i] = np.random.randint(0, self.num_actions + 1)
+                            actions[idx] = np.random.randint(0, self.num_actions + 1)
                     self.epsilon = iters / self.eps_iter
                     # logger.info(len(actions))
 
@@ -98,7 +97,6 @@ class Player(object):
 
                     losses.add(np.mean(loss))
                     batch_time.add(time.time() - start)
-
                     if iters % self.print_freq == 0:
                         logger.info('Train: [{0}][{1}/{2}]\t'
                                     'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'

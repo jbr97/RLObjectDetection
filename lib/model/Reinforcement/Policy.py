@@ -46,9 +46,16 @@ class DQN(object):
             self.eval_net.load_state_dict(checkpoint['state_dict'], strict=True)
             self.target_net.load_state_dict(checkpoint['state_dict'], strict=True)
 
+        self.eval_net.freeze_layer()
+        self.target_net.freeze_layer()
         self.loss_func = nn.MSELoss()
 
-        self.optimizer = torch.optim.Adam(self.eval_net.parameters(), lr=self.learning_rate)
+
+        parameter = []
+        for par in self.eval_net.parameters():
+            if par.requires_grad == True:
+                parameter.append(par)
+        self.optimizer = torch.optim.Adam(parameter, lr=self.learning_rate)
 
     def update_target_network(self):
         self.target_net.load_state_dict(self.eval_net.state_dict())
