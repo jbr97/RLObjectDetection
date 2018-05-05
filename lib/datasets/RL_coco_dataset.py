@@ -141,7 +141,7 @@ class COCODataset(Dataset):
 				cls_id = self.cat2cls[cat_id]
 				bbox[2] += bbox[0]
 				bbox[3] += bbox[1]
-				generate_bboxes.append(bbox+[score]+[cat_id]+[img_id])
+				generate_bboxes.append(bbox+[score]+[cls_id]+[img_id])
 				generate_labels.append(generate_label)
 
 		## image data processing

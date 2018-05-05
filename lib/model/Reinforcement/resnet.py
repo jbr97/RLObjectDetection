@@ -103,10 +103,12 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-	def __init__(self, block, layers, num_acts=1):
+	def __init__(self, block, layers, num_acts=1, num_classes=1):
 		self.inplanes = 64
 		self.num_acts = num_acts
+		self.num_classes = num_classes
 		super(ResNet, self).__init__()
+
 		self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
 					 bias=False)
 		self.bn1 = nn.BatchNorm2d(64)
@@ -115,14 +117,14 @@ class ResNet(nn.Module):
 		self.layer1 = self._make_layer(block, 64, layers[0])
 		self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
 		self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-		# self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+		#self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 		# it is slightly better whereas slower to set stride = 1
 		self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
 
 		self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
-		self.fc8 = nn.Linear(2048, 4096)
-		self.fc = nn.Linear(4096, self.num_acts)
+		#self.fc8 = nn.Linear(2048, 4096)
+		self.fc = nn.Linear(2048, num_acts * num_classes)
 
 		for m in self.modules():
 			if isinstance(m, nn.Conv2d):
@@ -163,10 +165,13 @@ class ResNet(nn.Module):
 
 		return nn.Sequential(*layers)
 
-	def forward(self, img, bboxes, targets, weights):
+	def forward(self, img, bboxes, cls_ids, targets, weights):
 		bboxes = bboxes.view(-1, 5)
-		targets = targets.view(-1, self.num_acts)
-		weights = weights.view(-1, self.num_acts)
+		batch_size = bboxes.size(0)
+
+		cls_ids = cls_ids.view(batch_size)
+		targets = targets.view(batch_size, self.num_acts)
+		weights = weights.view(batch_size, self.num_acts)
 
 		x = self.conv1(img)
 		x = self.bn1(x)
@@ -176,19 +181,27 @@ class ResNet(nn.Module):
 		x = self.layer1(x)
 		x = self.layer2(x)
 		x = self.layer3(x)
-
-		roi_feat = self.RCNN_roi_align(x, bboxes)
+		
+		x = self.RCNN_roi_align(x, bboxes)
 
 		# head to tail
-		pooled_feat = self.layer4(roi_feat)
+		x = self.layer4(x)
 		# avg pool
-		pooled_feat = pooled_feat.mean(3)
-		pooled_feat = pooled_feat.mean(2)
-
-		x = self.fc8(pooled_feat)
-		x = self.relu(x)
+		x = x.mean(3)
+		x = x.mean(2)
+		
+		#x = self.fc8(x)
+		#x = self.relu(x)
 		pred = self.fc(x)
+		
+		# with shape (batch*num_classes, num_acts)
+		pred = pred.reshape(-1, self.num_acts)
+		cls_ids += torch.range(0, self.num_classes * batch_size - 1, self.num_classes).cuda()
+		# index select with class indices
+		cls_ids = cls_ids.type(torch.cuda.LongTensor)
+		pred = torch.index_select(pred, 0, cls_ids)
 
+		# pred, targets, weights: (batch, num_acts)
 		loss, noweight_loss = self._weighted_mse_loss(pred, targets, weights)
 		return pred, loss, noweight_loss
 
@@ -231,12 +244,14 @@ def resnet50(pretrained=False):
 	return model
 
 
-def resnet101(pretrained=False, num_acts=1):
+def resnet101(pretrained=False, num_acts=1, num_classes=1):
 	"""Constructs a ResNet-101 model.
 	Args:
 	pretrained (bool): If True, returns a model pre-trained on ImageNet
 	"""
-	model = ResNet(Bottleneck, [3, 4, 23, 3], num_acts=num_acts)
+	model = ResNet(Bottleneck, [3, 4, 23, 3], 
+		num_acts=num_acts, 
+		num_classes=num_classes)
 	if pretrained:
 		model.load_state_dict(model_zoo.load_url(model_urls['resnet101']))
 	return model

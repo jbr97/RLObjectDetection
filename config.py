@@ -4,7 +4,8 @@ import numpy as np
 import torchvision.transforms as transforms
 
 class Config:
-	
+
+	num_classes = 80
 	pretrained_model = 'data/RL_model_dump/pretrained/faster_rcnn_new.pth'
 	# save_directory
 	save_dir = 'data/RL_model_dump/RL_linear.act7.step1.weight_globalnorm_exp/'
@@ -13,8 +14,8 @@ class Config:
 	train_img_short = [800]
 	train_img_size = 1200
 	train_flip = False
-	train_max_epoch = 15
-	train_lr_decay = [8, 12]
+	train_max_epoch = 25
+	train_lr_decay = [18, 22]
 	train_data_dir = 'data/coco/images/train2014'
 	train_ann_file = 'data/coco/annotations/instances_train2014.json'
 	train_dt_file = 'data/output/detections_train2014_results.json'
