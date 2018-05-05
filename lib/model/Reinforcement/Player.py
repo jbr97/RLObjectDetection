@@ -125,7 +125,41 @@ class Player(object):
                     iters += 1
 
     def val(self, val_data_loader):
-        pass
+        tot_g_0 = 0
+        tot_ge_0 = 0
+        tot = 0
+
+        start = time.time()
+        for i, inp in enumerate(val_data_loader):
+            imgs = inp[0]
+            bboxes = inp[1]
+            gts = inp[2]
+
+            # get actions
+            actions = self.policy.get_action(imgs, bboxes).tolist()
+
+            # get old_iou & new_iou
+            transform_bboxes = self._transform(bboxes, actions)
+            old_iou = self._compute_iou(gts, bboxes)
+            new_iou = self._compute_iou(gts, transform_bboxes)
+
+            delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
+
+            g_0 = len([u for u in delta_iou if u > 0])
+            ge_0 = len([u for u in delta_iou if u >= 0])
+            logger.info("Acc(greater than 0): {0} Acc(greater or equal 0): {1}"
+                        .format(g_0 / len(delta_iou), ge_0 / len(delta_iou)))
+            tot_g_0 += g_0
+            tot_ge_0 += ge_0
+            tot += len(delta_iou)
+
+        logger.info("Acc(greater than 0): {0} Acc(greater or equal 0): {1}"
+                    .format(tot_g_0 / tot, tot_ge_0 / tot))
+
+
+
+
+
 
     def _save_model(self, model):
         save_path = os.path.join(self.log_path, 'model-{}.pth'.format(model['iter']))

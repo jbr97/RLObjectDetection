@@ -1,0 +1,23 @@
+{
+  "mode": "val",
+  "data_dir": "data/coco/images/val2014",
+  "ann_file": "data/coco/annotations/instances_minival2014.json",
+  "dt_file": "data/output/detections_minival2014_results.json",
+  "max_epoch": 10,
+  "target_network_update_freq": 500,
+  "print_freq": 1,
+  "ckpt_freq": 1000,
+  "log_path": "ckpt",
+  "batch_size": 8,
+  "num_actions": 25,
+  "num_rl_steps": 1,
+  "sample_num": 256,
+  "sample_ratio": 0.5,
+  "lr": 1e-3,
+  "weight_decay": 4e-5,
+  "lr_decay": 0.97,
+  "decay_epoch": 1,
+  "gamma": 1,
+  "pretrain": "data/pretrained/faster_rcnn_new.pth",
+  "resume": "ckpt/model-100.pth"
+}
