@@ -70,8 +70,17 @@ class DQN(object):
         bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
 
         values = self.eval_net(img, bboxes)
-
-        action = torch.max(values, 1)[1].cpu().data.numpy()
+        
+        max_vals = torch.max(values, 1)[0].cpu().data.numpy()
+        max_inds = torch.max(values, 1)[1].cpu().data.numpy()
+        action = []
+        for max_val, max_ind in zip(max_vals, max_inds):
+            if max_val < 0:
+                action.append(0)
+            else:
+                action.append(max_ind)
+        action = np.array(action)
+        # action = torch.max(values, 1)[1].cpu().data.numpy()
         # logger.info(action)
         # action = action[0]
         return action

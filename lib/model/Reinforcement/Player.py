@@ -144,6 +144,7 @@ class Player(object):
             imgs = inp[0]
             bboxes = inp[1]
             gts = inp[2]
+            resize_scales = inp[3][:, 2]
             ids = inp[5]
 
             # get actions
@@ -158,30 +159,37 @@ class Player(object):
 
             g_0 = len([u for u in delta_iou if u > 0])
             ge_0 = len([u for u in delta_iou if u >= 0])
-            logger.info("Acc(greater than 0): {0} Acc(greater or equal 0): {1}"
+            logger.info("Acc(>0): {0} Acc(>=0): {1}"
                         .format(g_0 / len(delta_iou), ge_0 / len(delta_iou)))
             tot_g_0 += g_0
             tot_ge_0 += ge_0
             tot += len(delta_iou)
 
-            for i, (old_bbox, new_bbox) in enumerate(bboxes, transform_bboxes):
-                old_ann = {"imag_id": int(ids[int(old_bbox[0])]), "category_id":old_bbox[5], "bbox": old_bbox[1:5], "score": old_bbox[6]}
-                new_ann = {"imag_id": int(ids[int(new_bbox[0])]), "category_id":new_bbox[5], "bbox": new_bbox[1:5], "score": new_bbox[6]}
-                all_old_bboxes.append(old_ann)
+            for j, (old_bbox, new_bbox) in enumerate(zip(bboxes, transform_bboxes)):
+                # bbox = (old_bbox[1:5] / resize_scales[j // 100]).tolist()
+                # old_ann = {"image_id": int(ids[int(old_bbox[0])]), "category_id":int(old_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": old_bbox[6]}
+                bbox = (new_bbox[1:5] / resize_scales[j // 100]).tolist()
+                new_ann = {"image_id": int(ids[int(new_bbox[0])]), "category_id":int(new_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": new_bbox[6]}
+                #print (old_ann)
+                # all_old_bboxes.append(old_ann)
                 all_new_bboxes.append(new_ann)
-
-        logger.info("Acc(greater than 0): {0} Acc(greater or equal 0): {1}"
+            """
+            if i % 50 == 0:
+                self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
+                self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
+            """
+        logger.info("Acc(>0): {0} Acc(>=0): {1}"
                     .format(tot_g_0 / tot, tot_ge_0 / tot))
 
-        self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
-        self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
+        # self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
+        # self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
 
         self._save_results(all_new_bboxes, os.path.join(self.log_path, "new_results.json"))
         self._do_detection_eval(os.path.join(self.log_path, "new_results.json"))
 
     def _do_detection_eval(self, res_file):
         ann_type = 'bbox'
-        coco_dt = self._COCO.loadRes(self._load_results(res_file))
+        coco_dt = self._COCO.loadRes(res_file)
         coco_eval = COCOeval(self._COCO, coco_dt)
         coco_eval.params.useSegm = (ann_type == 'segm')
         coco_eval.evaluate()
@@ -190,8 +198,9 @@ class Player(object):
 
     def _save_results(self, all_bboxes, res_file):
         with open(res_file, "w") as f:
-            for bbox in all_bboxes:
-                f.write(json.dumps(bbox) + '\n')
+            f.write(json.dumps(all_bboxes))
+            #for bbox in all_bboxes:
+            #    f.write(json.dumps(bbox) + '\n')
 
     def _load_results(self, res_file):
         print('loading results from {}\n'.format(res_file))
@@ -304,7 +313,7 @@ class Player(object):
         """
         fg_inds = np.where(np.array(delta_iou) >= 0)[0]
         bg_inds = np.where(np.array(delta_iou) < 0)[0]
-        # logger.info("fg num: {}".format(len(fg_inds)))
+        # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))
         fg_num = int(self.sample_num * self.sample_ratio)
         if len(fg_inds) > fg_num:
@@ -313,7 +322,8 @@ class Player(object):
         bg_num = self.sample_num - len(fg_inds)
         if len(bg_inds) > bg_num:
             bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
-
+        
+        logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         inds = np.array(np.append(fg_inds, bg_inds))
         # logger.info(inds)
         return bboxes[inds, :], np.array(actions)[inds].tolist(), tranform_bboxes[inds, :], np.array(delta_iou)[inds].tolist()
@@ -327,7 +337,7 @@ class Player(object):
         rewards = []
         for i in range(len(actions)):
             if actions[i] == 0:
-                rewards.append(0.05)
+                rewards.append(0.075)
             else:
                 rewards.append(math.tan(delta_iou[i] / 0.14))
         return rewards
