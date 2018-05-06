@@ -47,24 +47,6 @@ class Player(object):
         logger.info("Init Done")
 
         self._COCO = COCO(config["ann_file"])
-        cats = self._COCO.loadCats(self._COCO.getCatIds())
-        self._classes = tuple(['__background__'] + [c['name'] for c in cats])
-        # self._class_to_ind = dict(list(zip(self.classes, list(range(self.num_classes)))))
-        self._class_to_coco_cat_id = dict(list(zip([c['name'] for c in cats],
-                                                   self._COCO.getCatIds())))
-        self._image_index = self._load_image_set_index()
-
-    @property
-    def num_classes(self):
-        return len(self._classes)
-
-    @property
-    def classes(self):
-        return self._classes
-
-    @property
-    def image_index(self):
-        return self._image_index
 
     def train(self, train_dataloader):
         iters = 0
@@ -156,7 +138,8 @@ class Player(object):
 
         start = time.time()
 
-        all_bboxes = list()
+        all_old_bboxes = list()
+        all_new_bboxes = list()
         for i, inp in enumerate(val_data_loader):
             imgs = inp[0]
             bboxes = inp[1]
@@ -181,113 +164,38 @@ class Player(object):
             tot_ge_0 += ge_0
             tot += len(delta_iou)
 
+            for i, (old_bbox, new_bbox) in enumerate(bboxes, transform_bboxes):
+                old_ann = {"imag_id": int(ids[int(old_bbox[0])]), "category_id":old_bbox[5], "bbox": old_bbox[1:5], "score": old_bbox[6]}
+                new_ann = {"imag_id": int(ids[int(new_bbox[0])]), "category_id":new_bbox[5], "bbox": new_bbox[1:5], "score": new_bbox[6]}
+                all_old_bboxes.append(old_ann)
+                all_new_bboxes.append(new_ann)
+
         logger.info("Acc(greater than 0): {0} Acc(greater or equal 0): {1}"
                     .format(tot_g_0 / tot, tot_ge_0 / tot))
 
-    def evaluate_detections(self, all_boxes, output_dir):
-        """
-        :param all_boxes:
-        # [{"image_id": 42,
-        #   "category_id": 18,
-        #   "bbox": [258.15,41.29,348.26,243.78],
-        #   "score": 0.236}, ...]
-        :param output_dir:
-        :return:
-        """
-        res_file = os.path.join(output_dir, "results.json")
+        self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
+        self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
 
-        self._write_coco_results_file(all_boxes, res_file)
+        self._save_results(all_new_bboxes, os.path.join(self.log_path, "new_results.json"))
+        self._do_detection_eval(os.path.join(self.log_path, "new_results.json"))
 
-        self._do_detection_eval(res_file, output_dir)
-
-    def _write_coco_results_file(self, all_boxes, res_file):
-        # [{"image_id": 42,
-        #   "category_id": 18,
-        #   "bbox": [258.15,41.29,348.26,243.78],
-        #   "score": 0.236}, ...]
-        results = []
-        for cls_ind, cls in enumerate(self.classes):
-            if cls == '__background__':
-                continue
-            print('Collecting {} results ({:d}/{:d})'.format(cls, cls_ind,
-                                                             self.num_classes - 1))
-            coco_cat_id = self._class_to_coco_cat_id[cls]
-            results.extend(self._coco_results_one_category(all_boxes[cls_ind],
-                                                           coco_cat_id))
-        print('Writing results json to {}'.format(res_file))
-        with open(res_file, 'w') as fid:
-            json.dump(results, fid)
-
-    def _do_detection_eval(self, res_file, output_dir):
+    def _do_detection_eval(self, res_file):
         ann_type = 'bbox'
-        coco_dt = self._COCO.loadRes(res_file)
+        coco_dt = self._COCO.loadRes(self._load_results(res_file))
         coco_eval = COCOeval(self._COCO, coco_dt)
         coco_eval.params.useSegm = (ann_type == 'segm')
         coco_eval.evaluate()
         coco_eval.accumulate()
-        self._print_detection_eval_metrics(coco_eval)
-        eval_file = os.path.join(output_dir, 'detection_results.pkl')
-        with open(eval_file, 'wb') as fid:
-            pickle.dump(coco_eval, fid, pickle.HIGHEST_PROTOCOL)
-        print('Wrote COCO eval results to: {}'.format(eval_file))
-
-    def _coco_results_one_category(self, boxes, cat_id):
-        results = []
-        for im_ind, index in enumerate(self.image_index):
-            dets = boxes[im_ind].astype(np.float)
-            if dets == []:
-                continue
-            scores = dets[:, -1]
-            xs = dets[:, 0]
-            ys = dets[:, 1]
-            ws = dets[:, 2] - xs + 1
-            hs = dets[:, 3] - ys + 1
-            results.extend(
-                [{'image_id': index,
-                  'category_id': cat_id,
-                  'bbox': [xs[k], ys[k], ws[k], hs[k]],
-                  'score': scores[k]} for k in range(dets.shape[0])])
-        return results
-
-    def _print_detection_eval_metrics(self, coco_eval):
-        IoU_lo_thresh = 0.5
-        IoU_hi_thresh = 0.95
-
-        def _get_thr_ind(coco_eval, thr):
-            ind = np.where((coco_eval.params.iouThrs > thr - 1e-5) &
-                           (coco_eval.params.iouThrs < thr + 1e-5))[0][0]
-            iou_thr = coco_eval.params.iouThrs[ind]
-            assert np.isclose(iou_thr, thr)
-            return ind
-
-        ind_lo = _get_thr_ind(coco_eval, IoU_lo_thresh)
-        ind_hi = _get_thr_ind(coco_eval, IoU_hi_thresh)
-        # precision has dims (iou, recall, cls, area range, max dets)
-        # area range index 0: all area ranges
-        # max dets index 2: 100 per image
-        precision = \
-            coco_eval.eval['precision'][ind_lo:(ind_hi + 1), :, :, 0, 2]
-        ap_default = np.mean(precision[precision > -1])
-        print(('~~~~ Mean and per-category AP @ IoU=[{:.2f},{:.2f}] '
-               '~~~~').format(IoU_lo_thresh, IoU_hi_thresh))
-        print('{:.1f}'.format(100 * ap_default))
-        for cls_ind, cls in enumerate(self.classes):
-            if cls == '__background__':
-                continue
-            # minus 1 because of __background__
-            precision = coco_eval.eval['precision'][ind_lo:(ind_hi + 1), :, cls_ind - 1, 0, 2]
-            ap = np.mean(precision[precision > -1])
-            print('{:.1f}'.format(100 * ap))
-
-        print('~~~~ Summary metrics ~~~~')
         coco_eval.summarize()
 
-    def _load_image_set_index(self):
-        """
-        Load image ids.
-        """
-        image_ids = self._COCO.getImgIds()
-        return image_ids
+    def _save_results(self, all_bboxes, res_file):
+        with open(res_file, "w") as f:
+            for bbox in all_bboxes:
+                f.write(json.dumps(bbox) + '\n')
+
+    def _load_results(self, res_file):
+        print('loading results from {}\n'.format(res_file))
+        return [json.loads(line) for line in open(res_file, 'r')]
 
     def _save_model(self, model):
         save_path = os.path.join(self.log_path, 'model-{}.pth'.format(model['iter']))
