@@ -35,12 +35,14 @@ class DQN(object):
 
         if self.pretrain != "":
             assert os.path.isfile(self.pretrain), '{} is not a valid file'.format(self.pretrain)
+            logger.info("load ckpt from {}".format(self.pretrain))
             checkpoint = torch.load(self.pretrain)
             self.eval_net.load_state_dict(checkpoint, strict=False)
             self.target_net.load_state_dict(checkpoint, strict=False)
 
         if self.resume != "":
             assert os.path.isfile(self.resume), '{} is not a valid file'.format(self.resume)
+            logger.info("resume from {}".format(self.resume))
             checkpoint = torch.load(self.resume)
             # start_epoch = checkpoint['epoch']
             self.eval_net.load_state_dict(checkpoint['state_dict'], strict=True)

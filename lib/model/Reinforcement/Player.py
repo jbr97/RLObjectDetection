@@ -50,9 +50,9 @@ class Player(object):
 
     def train(self, train_dataloader):
         iters = 0
-        losses = AveMeter(100)
-        batch_time = AveMeter(100)
-        data_time = AveMeter(100)
+        losses = AveMeter(30)
+        batch_time = AveMeter(30)
+        data_time = AveMeter(30)
 
         start = time.time()
         for epoch in range(self.max_epoch):
@@ -140,6 +140,8 @@ class Player(object):
 
         all_old_bboxes = list()
         all_new_bboxes = list()
+        action_nums = [0] * 25
+        iou_nums = [0] * 6
         for i, inp in enumerate(val_data_loader):
             imgs = inp[0]
             bboxes = inp[1]
@@ -149,13 +151,21 @@ class Player(object):
 
             # get actions
             actions = self.policy.get_action(imgs, bboxes).tolist()
-
+            for action in actions:
+                action_nums[action] += 1
             # get old_iou & new_iou
             transform_bboxes = self._transform(bboxes, actions)
             old_iou = self._compute_iou(gts, bboxes)
             new_iou = self._compute_iou(gts, transform_bboxes)
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
+
+            iou_nums[0] += len([u for u in delta_iou if u >= 0.1])
+            iou_nums[1] += len([u for u in delta_iou if u < 0.1 and u > 0.05])
+            iou_nums[2] += len([u for u in delta_iou if u < 0.05 and u >= 0])
+            iou_nums[3] += len([u for u in delta_iou if u < 0 and u >= -0.05])
+            iou_nums[4] += len([u for u in delta_iou if u < -0.05 and u >= -0.1])
+            iou_nums[5] += len([u for u in delta_iou if u < -0.1])
 
             g_0 = len([u for u in delta_iou if u > 0])
             ge_0 = len([u for u in delta_iou if u >= 0])
@@ -180,10 +190,12 @@ class Player(object):
             """
         logger.info("Acc(>0): {0} Acc(>=0): {1}"
                     .format(tot_g_0 / tot, tot_ge_0 / tot))
-
+        for idx, action_num in enumerate(action_nums):
+            logger.info("the num of action {} is {}".format(idx, action_num))
         # self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
         # self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
-
+        for iou_num in iou_nums:
+            logger.info("rate: {}".format(iou_num / tot))
         self._save_results(all_new_bboxes, os.path.join(self.log_path, "new_results.json"))
         self._do_detection_eval(os.path.join(self.log_path, "new_results.json"))
 
@@ -337,7 +349,7 @@ class Player(object):
         rewards = []
         for i in range(len(actions)):
             if actions[i] == 0:
-                rewards.append(0.075)
+                rewards.append(0.05)
             else:
                 rewards.append(math.tan(delta_iou[i] / 0.14))
         return rewards

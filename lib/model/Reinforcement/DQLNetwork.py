@@ -123,9 +123,9 @@ class ResNet(nn.Module):
 
         self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
-        self.fc1 = nn.Linear(2048, 2048)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(2048, action_num)
+        self.fc1 = nn.Linear(2048, action_num)
+        #self.relu = nn.ReLU()
+        #self.fc2 = nn.Linear(2048, action_num)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -184,8 +184,8 @@ class ResNet(nn.Module):
         pooled_feat = pooled_feat.view(pooled_feat.shape[0], -1)
 
         x = self.fc1(pooled_feat)
-        x = self.relu(x)
-        x = self.fc2(x)
+        # x = self.relu(x)
+        # x = self.fc2(x)
 
         return x
 
