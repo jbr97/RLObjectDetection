@@ -400,7 +400,7 @@ class Player(object):
         :param delta_iou: [N]
         :return: sampled result
         """
-        fg_inds = np.where(np.array(delta_iou) >= 0)[0]
+        fg_inds = np.where(np.array(delta_iou) > 0)[0]
         bg_inds = np.where(np.array(delta_iou) < 0)[0]
         # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))
