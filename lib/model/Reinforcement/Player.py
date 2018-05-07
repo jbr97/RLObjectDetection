@@ -59,8 +59,8 @@ class Player(object):
         for epoch in range(self.max_epoch):
             for i, inp in enumerate(train_dataloader):                                  #　TODO： 是否shuffle？ YES
                 # suppose we have img, bboxes, gts
-                # bboxes:[ids, x1, y1, x2, y2, label]
-                # gts: [ids, x1, y1, x2, y2, label]
+                # bboxes:[batch_id, x1, y1, x2, y2, category, score]
+                # gts: [batch_id, x1, y1, x2, y2, category, iscrowd]
                 data_time.add(time.time() - start)
                 imgs = inp[0]
                 bboxes = inp[1]
@@ -80,21 +80,21 @@ class Player(object):
                     # compute iou for epoch bbox before and afer action
                     # we can get delta_iou
                     # bboxes, actions, transform_bboxes, delta_iou
-                    transform_bboxes = self._transform(bboxes, actions)
-                    old_iou = self._compute_iou(gts, bboxes)                                # TODO: iou 需要考虑到category
+                    transform_bboxes = self._transform(bboxes, actions)                     # TODO: transform换个写法.       DONE
+                    old_iou = self._compute_iou(gts, bboxes)                                # TODO: iou 需要考虑到category.   DONE
                     # logger.info(len(old_iou))
                     new_iou = self._compute_iou(gts, transform_bboxes)
                     # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
                     # sample bboxes for a positive and negitive balance
-                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法
+                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法.  
                     # logger.info("bbox shape: {}".format(bboxes.shape))
                     # logger.info("action shape: {}".format(len(actions)))
                     # logger.info("transform_bboxes: {}".format(transform_bboxes.shape))
                     # logger.info("delta_iou shape: {}".format(len(delta_iou)))
                     # logger.info(actions)
-                    rewards = self._get_rewards(actions, delta_iou)                         # TODO: 统计reward的取值分布
+                    rewards = self._get_rewards(actions, delta_iou)                         # TODO: 统计reward的取值分布.
                     zero_num = len([u for u in actions if u == 0])
                     logger.info("the num of action0 is {}".format(zero_num))
                     if j == self.num_rl_steps - 1:
@@ -156,8 +156,11 @@ class Player(object):
                 action_nums[action] += 1
             # get old_iou & new_iou
             transform_bboxes = self._transform(bboxes, actions)
-            old_iou = self._compute_iou(gts, bboxes)
-            new_iou = self._compute_iou(gts, transform_bboxes)
+            # old_iou = self._compute_iou(gts, bboxes)
+            # new_iou = self._compute_iou(gts, transform_bboxes)
+            old_iou = self._computeIoU(gts, bboxes)
+            new_iou = self._computeIoU(gts, transform_bboxes)
+
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
@@ -233,56 +236,47 @@ class Player(object):
         for i, action in enumerate(actions):
             if action == 0:
                 pass
-            elif action == 1:
-                transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
-            elif action == 2:
-                transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
-            elif action == 3:
-                transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
-            elif action == 4:
-                transform_bboxes[i, 2] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
-            elif action == 5:
-                transform_bboxes[i, 2] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
-            elif action == 6:
-                transform_bboxes[i, 2] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
-            elif action == 7:
-                transform_bboxes[i, 3] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
-            elif action == 8:
-                transform_bboxes[i, 3] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
-            elif action == 9:
-                transform_bboxes[i, 3] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
-            elif action == 10:
-                transform_bboxes[i, 4] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
-            elif action == 11:
-                transform_bboxes[i, 4] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
-            elif action == 12:
-                transform_bboxes[i, 4] += (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
-            elif action == 13:
-                transform_bboxes[i, 1] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
-            elif action == 14:
-                transform_bboxes[i, 1] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
-            elif action == 15:
-                transform_bboxes[i, 1] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
-            elif action == 16:
-                transform_bboxes[i, 2] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
-            elif action == 17:
-                transform_bboxes[i, 2] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
-            elif action == 18:
-                transform_bboxes[i, 2] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
-            elif action == 19:
-                transform_bboxes[i, 3] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
-            elif action == 20:
-                transform_bboxes[i, 3] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
-            elif action == 21:
-                transform_bboxes[i, 3] -= (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.1
-            elif action == 22:
-                transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.02
-            elif action == 23:
-                transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
-            elif action == 24:
-                transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
             else:
-                raise RuntimeError('Unrecognized action.')
+                x, y, x2, y2= transform_bboxes[i, 1:5]
+                w = x2 - x
+                h = y2 - y
+                
+                # 1,2,3: [x,y,w,h] -> [x+0.02w, y, w, h]
+                if action == 1:   x += w * 0.02
+                elif action == 2: x += w * 0.05
+                elif action == 3: x += w * 0.1
+                # 4,5,6: [x,y,w,h] -> [x, y+0.02h, w, h]
+                elif action == 4: y += h * 0.02
+                elif action == 5: y += h * 0.05
+                elif action == 6: y += h * 0.1
+                # 7,8,9: [x,y,w,h] -> [x, y, w+0.02w, h]
+                elif action == 7: w += w * 0.02
+                elif action == 8: w += w * 0.05
+                elif action == 9: w += w * 0.1
+                # 10,11,12: [x,y,w,h] -> [x, y, w, h+0.02h]
+                elif action == 10: h += h * 0.02
+                elif action == 11: h += h * 0.05
+                elif action == 12: h += h * 0.1
+                # 13,14,15: [x,y,w,h] -> [x-0.02w, y, w, h]
+                elif action == 13: x -= w * 0.02
+                elif action == 14: x -= w * 0.05
+                elif action == 15: x -= w * 0.1
+                # 16,17,18: [x,y,w,h] -> [x, y-0.02h, w, h]
+                elif action == 16: y -= h * 0.02
+                elif action == 17: y -= h * 0.05
+                elif action == 18: y -= h * 0.1
+                # 19,20,21: [x,y,w,h] -> [x, y, w-0.02w, h]
+                elif action == 19: w -= w * 0.02
+                elif action == 20: w -= w * 0.05
+                elif action == 21: w -= w * 0.1
+                # 22,23,24: [x,y,w,h] -> [x, y, w, h-0.02h]
+                elif action == 22: h -= h * 0.02
+                elif action == 23: h -= h * 0.05
+                elif action == 24: h -= h * 0.1
+                else:
+                    raise RuntimeError('Unrecognized action.')
+
+                transform_bboxes[i, 1:5] = np.array([x, y, x+w, y+h])
         return transform_bboxes
 
     def _compute_iou(self, gts, bboxes):
@@ -299,18 +293,71 @@ class Player(object):
             ious.extend(iou)
         return ious
 
-    # add lyj
-    # by jbr   
-    def _computeIoU(self, b, gt_list):
-        # TODO this function need to be moved
-        gt = [g['bbox'] for g in gt_list]
-        iscrowd = [int(g['iscrowd']) for g in gt_list]
-        if len(gt) == 0:
-            return 0
-        ious = IoU([b], gt, iscrowd)
+    # # add lyj
+    # # by jbr   
+    # def _computeIoU(self, b, gt_list):
+    #     # TODO this function need to be moved
+    #     gt = [g['bbox'] for g in gt_list]
+    #     iscrowd = [int(g['iscrowd']) for g in gt_list]
+    #     if len(gt) == 0:
+    #         return 0
+    #     ious = IoU([b], gt, iscrowd)
 
-        return ious.max()
-    # end lyj
+    #     return ious.max()
+    # # end lyj
+
+
+    def _computeIoU(self, gts, bboxes):
+        """
+        gts: [N, 7], [batch_id, x1, y1, x2, y2, category, iscrowd]
+        bboxes: [N, 7], [batch_id, x1, y1, x2, y2, category, score]
+        """
+
+
+        ious = []
+        for i in range(self.batch_size):
+            # gt_ind = np.where(gts[:, 0] == i)[0]
+            # gt = gts[gt_ind][:, 1:7]
+            # dt_ind = np.where(bboxes[:, 0] == i)[0]
+
+            gt = gts[gts[:, 0] == i]
+            dt = bboxes[bboxes[:, 0] == i]
+
+            for j in range(dt.shape[0]):
+                # get dt bbox.
+                dt_bbox = self._transformxywh( dt[j, 1:5] ).tolist()
+
+                # compute category.
+                category = dt[j, 5]
+
+                # get gt bbox.
+                tmp = gt[gt[:, 5] == category]
+                if len(tmp) == 0:
+                    gt_bboxes = [[0, 0, 0, 0]]
+                    iscrowd = [0]
+                else:
+                    gt_bboxes = self._transformxywh( tmp[:, 1:5] ).tolist()
+                    iscrowd = [int(x) for x in tmp[:, 6]]
+
+
+                ious.append( IoU(dt_bbox, gt_bboxes, iscrowd).max() )
+
+        return ious
+
+
+    def _transformxywh(self, bbox):
+        if bbox.ndim == 1:
+            x1, y1, x2, y2 = bbox
+            bounding_boxes = np.array([[ x1, y1, x2-x1, y2-y1 ]])
+        elif bbox.ndim == 2:
+            n = bbox.shape[0]
+            bounding_boxes = np.zeros((n, 4))
+            for i in range(n):
+                bounding_boxes[i, :] = np.array([ x1, y1, x2-x1, y2-y1 ])
+        else:
+            raise RuntimeError('Unrecognized size of bbox.')
+
+        return bounding_boxes
 
 
     def _bbox_iou_overlaps(self, b1, b2):

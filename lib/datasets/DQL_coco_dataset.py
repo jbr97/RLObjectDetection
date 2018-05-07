@@ -94,7 +94,7 @@ class COCODataset(Dataset):
             cat_id = gt_box['category_id']
             iscrowd = gt_box['iscrowd']
             cls_id = self.category_to_class[cat_id]
-            gts.append(bbox + [cat_id])
+            gts.append(bbox + [cat_id] + [int(iscrowd)])
         gts = np.array(gts, dtype=np.float32)
 
         img = Image.open(filename)
