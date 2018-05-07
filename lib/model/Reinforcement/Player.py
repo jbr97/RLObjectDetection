@@ -72,7 +72,7 @@ class Player(object):
                     # replace some action in random policy
                     for idx in range(len(actions)):
                         if np.random.uniform() > self.epsilon:
-                            actions[idx] = np.random.randint(0, self.num_actions + 1)
+                            actions[idx] = np.random.randint(0, self.num_actions)
                     self.epsilon = iters / self.eps_iter
                     # logger.info(len(actions))
 
@@ -230,7 +230,9 @@ class Player(object):
         """
         transform_bboxes = bboxes.copy()
         for i, action in enumerate(actions):
-            if action == 1:
+            if action == 0:
+                pass
+            elif action == 1:
                 transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.02
             elif action == 2:
                 transform_bboxes[i, 1] += (transform_bboxes[i, 3] - transform_bboxes[i, 1]) * 0.05
@@ -278,6 +280,8 @@ class Player(object):
                 transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.05
             elif action == 24:
                 transform_bboxes[i, 4] -= (transform_bboxes[i, 4] - transform_bboxes[i, 2]) * 0.1
+            else:
+                raise RuntimeError('Unrecognized action.')
         return transform_bboxes
 
     def _compute_iou(self, gts, bboxes):
