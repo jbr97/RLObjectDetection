@@ -97,6 +97,10 @@ class COCODataset(Dataset):
             gts.append(bbox + [cat_id] + [int(iscrowd)])
         gts = np.array(gts, dtype=np.float32)
 
+        # print('gts shape:', gts.shape)
+        # raise RuntimeError
+
+
         img = Image.open(filename)
         if img.mode == 'L':
             img = img.convert('RGB')
@@ -113,6 +117,13 @@ class COCODataset(Dataset):
         img = to_tensor(img)
         if self.normalize_fn != None:
             img = self.normalize_fn(img)
+
+        # print('img shape:', img.shape)
+        # print('bboxes shape:', bboxes.shape)
+        # print('gts shape:', gts.shape)
+        # print('filename:', filename)
+        # print('img id:', img_id)
+        # raise RuntimeError
 
         return [img.unsqueeze(0),
                 bboxes,

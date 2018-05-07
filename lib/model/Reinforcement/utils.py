@@ -56,7 +56,7 @@ class Counter(object):
     def __len__(self):
         return len(self.items)
 
-    def get_statinfo(self, x):
+    def get_statinfo(self):
         assert len(self.items) == self._size, 'not enough sample in the counter.'
         
         sorted_items = sorted(self.items)

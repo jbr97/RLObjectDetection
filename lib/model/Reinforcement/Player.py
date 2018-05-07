@@ -69,6 +69,11 @@ class Player(object):
                 bboxes = inp[1]
                 gts = inp[2]
 
+                # print('image shape:', imgs.shape)
+                # print('bboxes shape:', bboxes.shape)
+                # print('gts shape:', gts.shape)
+                # raise RuntimeError
+
                 for j in range(self.num_rl_steps):
                     # get actions from eval_net
                     actions = self.policy.get_action(imgs, bboxes).tolist()
@@ -405,7 +410,7 @@ class Player(object):
         # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))
         fg_num = int(self.sample_num * self.sample_ratio)
-        bg_num = self.sample_num - len(fg_inds)
+        bg_num = self.sample_num - fg_num
 
         assert len(fg_inds) > fg_num and len(bg_inds) > bg_num, 'sample size is too large.'
 
