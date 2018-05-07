@@ -80,7 +80,7 @@ class Player(object):
 
                     # replace some action in random policy
                     for idx in range(len(actions)):
-                        if np.random.uniform() > self.epsilon:
+                        if np.random.uniform() > max(self.epsilon, 0.05):
                             actions[idx] = np.random.randint(0, self.num_actions)
                     self.epsilon = iters / self.eps_iter
                     # logger.info(len(actions))
@@ -412,10 +412,19 @@ class Player(object):
         fg_num = int(self.sample_num * self.sample_ratio)
         bg_num = self.sample_num - fg_num
 
-        assert len(fg_inds) > fg_num and len(bg_inds) > bg_num, 'sample size is too large.'
+        # assert len(fg_inds) > fg_num and len(bg_inds) > bg_num, 'sample size is too large.'
+        if len(fg_inds) < fg_num or len(bg_inds) < bg_num: # TODO: to improve by ratio.
+            tmp = min(len(fg_inds), len(bg_inds))
+            fg_num = tmp - 1
+            bg_num = tmp - 1
+
+        if fg_num <= 0:
+            raise RuntimeError('to improve sample bboxes code.')
+            
 
         if len(fg_inds) > fg_num:
-            fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
+            # fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
+            fg_inds = delta_iou.argsort()[-fg_num:]
 
         if len(bg_inds) > bg_num:
             bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
@@ -434,7 +443,7 @@ class Player(object):
         rewards = []
         for i in range(len(actions)):
             if actions[i] == 0:
-                rewards.append(0.05)
+                rewards.append(0.02)
             else:
                 rewards.append(math.tan(delta_iou[i] / 0.14))
         return rewards
