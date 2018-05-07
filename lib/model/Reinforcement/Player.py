@@ -56,7 +56,7 @@ class Player(object):
 
         start = time.time()
         for epoch in range(self.max_epoch):
-            for i, inp in enumerate(train_dataloader):
+            for i, inp in enumerate(train_dataloader):                                  #　TODO： 是否shuffle？ YES
                 # suppose we have img, bboxes, gts
                 # bboxes:[ids, x1, y1, x2, y2, label]
                 # gts: [ids, x1, y1, x2, y2, label]
@@ -80,20 +80,20 @@ class Player(object):
                     # we can get delta_iou
                     # bboxes, actions, transform_bboxes, delta_iou
                     transform_bboxes = self._transform(bboxes, actions)
-                    old_iou = self._compute_iou(gts, bboxes)
+                    old_iou = self._compute_iou(gts, bboxes)                                # TODO: iou 需要考虑到category
                     # logger.info(len(old_iou))
                     new_iou = self._compute_iou(gts, transform_bboxes)
                     # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
                     # sample bboxes for a positive and negitive balance
-                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)
+                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法
                     # logger.info("bbox shape: {}".format(bboxes.shape))
                     # logger.info("action shape: {}".format(len(actions)))
                     # logger.info("transform_bboxes: {}".format(transform_bboxes.shape))
                     # logger.info("delta_iou shape: {}".format(len(delta_iou)))
                     # logger.info(actions)
-                    rewards = self._get_rewards(actions, delta_iou)
+                    rewards = self._get_rewards(actions, delta_iou)                         # TODO: 统计reward的取值分布
                     zero_num = len([u for u in actions if u == 0])
                     logger.info("the num of action0 is {}".format(zero_num))
                     if j == self.num_rl_steps - 1:
