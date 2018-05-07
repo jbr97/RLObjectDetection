@@ -24,6 +24,11 @@ class COCODataset(Dataset):
         return COCODataset.class_to_category[class_id]
 
     def __init__(self, root_dir, anno_file, dt_file, transform_fn = None, normalize_fn=None):
+        """
+        root_dir: 存放照片的路径。加照片名可以得到照片。
+        anno_file: ground truth存放位置。
+        dt_file: detection结果的位置。
+        """
         self.root_dir = root_dir
         self.transform_fn = transform_fn
         self.normalize_fn = normalize_fn
@@ -56,8 +61,9 @@ class COCODataset(Dataset):
         Args: index of data
         Return: a single data:
             image_data: FloatTensor, shape [1, 3, h, w]
+            bboxes: np.array, shape [N, 6] (x, y, x2, y2, category, score)
+            gts: np.array, shape [M, 5] (x, y, x2, y2, category)
             image_info: list of [resized_image_h, resized_image_w, resize_scale, origin_image_h, origin_image_w]
-            bboxes: np.array, shape [N, 5] (x1,y1,x2,y2,label)
             filename: str
         Warning:
             we will feed fake ground truthes if None
