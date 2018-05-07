@@ -62,7 +62,7 @@ class COCODataset(Dataset):
         Return: a single data:
             image_data: FloatTensor, shape [1, 3, h, w]
             bboxes: np.array, shape [N, 6] (x, y, x2, y2, category, score)
-            gts: np.array, shape [M, 5] (x, y, x2, y2, category)
+            gts: np.array, shape [M, 5] (x, y, x2, y2, category, iscrowd)
             image_info: list of [resized_image_h, resized_image_w, resize_scale, origin_image_h, origin_image_w]
             filename: str
         Warning:
@@ -92,6 +92,7 @@ class COCODataset(Dataset):
             bbox[3] += bbox[1]
             # score = gt_box['score']
             cat_id = gt_box['category_id']
+            iscrowd = gt_box['iscrowd']
             cls_id = self.category_to_class[cat_id]
             gts.append(bbox + [cat_id])
         gts = np.array(gts, dtype=np.float32)
