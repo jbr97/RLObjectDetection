@@ -17,7 +17,7 @@ from pycocotools.coco import COCO
 from pycocotools.mask import iou as IoU
 from pycocotools.cocoeval import COCOeval
 from model.Reinforcement.Policy import DQN
-from model.Reinforcement.utils import AveMeter
+from model.Reinforcement.utils import AveMeter, Counter
 
 class Player(object):
     def __init__(self, config):
@@ -55,6 +55,9 @@ class Player(object):
         batch_time = AveMeter(30)
         data_time = AveMeter(30)
 
+        reward_cnt = Counter(100)
+        diou_cnt = Counter(100)
+
         start = time.time()
         for epoch in range(self.max_epoch):
             for i, inp in enumerate(train_dataloader):                                  #　TODO： 是否shuffle？ YES
@@ -87,14 +90,19 @@ class Player(object):
                     # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
+                    diou_cnt.add(delta_iou)
+
                     # sample bboxes for a positive and negitive balance
-                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法.  
+                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法.  加了一个assertion，防止问题。
                     # logger.info("bbox shape: {}".format(bboxes.shape))
                     # logger.info("action shape: {}".format(len(actions)))
                     # logger.info("transform_bboxes: {}".format(transform_bboxes.shape))
                     # logger.info("delta_iou shape: {}".format(len(delta_iou)))
                     # logger.info(actions)
-                    rewards = self._get_rewards(actions, delta_iou)                         # TODO: 统计reward的取值分布.
+                    rewards = self._get_rewards(actions, delta_iou)                         # TODO: 统计reward的取值分布.   DONE
+
+                    reward_cnt.add(rewards)
+
                     zero_num = len([u for u in actions if u == 0])
                     logger.info("the num of action0 is {}".format(zero_num))
                     if j == self.num_rl_steps - 1:
@@ -115,6 +123,10 @@ class Player(object):
                                     data_time=data_time,
                                     losses=losses)
                         )
+                        a1, a2, a3, a4, a5 = reward_cnt.get_statinfo()
+                        d1, d2, d3, d4, d5 = diou_cnt.get_statinfo()
+                        logger.info('reward dist: {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}\tdiou dist: {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}'.format(a1, a2, a3, a4, a5, 
+                                                                                                                                                    d1, d2, d3, d4, d5))
 
                     if iters % self.ckpt_freq == 0:
                         state = {
@@ -393,10 +405,13 @@ class Player(object):
         # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))
         fg_num = int(self.sample_num * self.sample_ratio)
+        bg_num = self.sample_num - len(fg_inds)
+
+        assert len(fg_inds) > fg_num and len(bg_inds) > bg_num, 'sample size is too large.'
+
         if len(fg_inds) > fg_num:
             fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
 
-        bg_num = self.sample_num - len(fg_inds)
         if len(bg_inds) > bg_num:
             bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
         

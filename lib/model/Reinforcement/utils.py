@@ -1,6 +1,7 @@
 import logging
 import os
 import numpy as np
+from collections import deque
 
 logs = set()
 
@@ -39,6 +40,30 @@ class AveMeter():
             self.elems.append(x)
             self.avg = sum(self.elems) / (self.opr+1)
         self.opr += 1
+
+
+class Counter(object):
+    def __init__(self, size=100):
+        self._size = size
+        self.items = deque(list(), self._size)
+
+    def add(self, x) :
+        if isinstance(x, list):
+            self.items.extend(x)
+        else:
+            self.items.append(x)
+
+    def __len__(self):
+        return len(self.items)
+
+    def get_statinfo(self, x):
+        assert len(self.items) == self._size, 'not enough sample in the counter.'
+        
+        sorted_items = sorted(self.items)
+        a, b, c, d, e = 0, int(self._size/4), int(self._size/2), int(self._size/4*3), self._size-1  
+
+        return sorted_items[a], sorted_items[b], sorted_items[c], sorted_items[d], sorted_items[e]
+
 
 def accuracy(output, target, k=1):
     output, target = output.reshape(-1), target.reshape(-1)
