@@ -14,6 +14,7 @@ import logging
 logger = logging.getLogger("global")
 
 from pycocotools.coco import COCO
+from pycocotools.mask import iou as IoU
 from pycocotools.cocoeval import COCOeval
 from model.Reinforcement.Policy import DQN
 from model.Reinforcement.utils import AveMeter
@@ -297,6 +298,19 @@ class Player(object):
             iou = np.max(self._bbox_iou_overlaps(bbox, gt), 1).tolist()
             ious.extend(iou)
         return ious
+
+    # add lyj
+    # by jbr   
+    def _computeIoU(self, b, gt_list):
+        # TODO this function need to be moved
+        gt = [g['bbox'] for g in gt_list]
+        iscrowd = [int(g['iscrowd']) for g in gt_list]
+        if len(gt) == 0:
+            return 0
+        ious = IoU([b], gt, iscrowd)
+
+        return ious.max()
+    # end lyj
 
 
     def _bbox_iou_overlaps(self, b1, b2):
