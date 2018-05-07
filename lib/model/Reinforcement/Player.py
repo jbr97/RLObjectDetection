@@ -55,8 +55,8 @@ class Player(object):
         batch_time = AveMeter(30)
         data_time = AveMeter(30)
 
-        reward_cnt = Counter(100)
-        diou_cnt = Counter(100)
+        reward_cnt = Counter(1000)
+        diou_cnt = Counter(1000)
 
         start = time.time()
         for epoch in range(self.max_epoch):
@@ -95,7 +95,6 @@ class Player(object):
                     # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
-                    diou_cnt.add(delta_iou)
 
                     # sample bboxes for a positive and negitive balance
                     bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法.  加了一个assertion，防止问题。
@@ -106,6 +105,9 @@ class Player(object):
                     # logger.info(actions)
                     rewards = self._get_rewards(actions, delta_iou)                         # TODO: 统计reward的取值分布.   DONE
 
+                    #print('max iou:', max(delta_iou))
+                    #print('max reward:', max(rewards))
+                    diou_cnt.add(delta_iou)
                     reward_cnt.add(rewards)
 
                     zero_num = len([u for u in actions if u == 0])
@@ -412,7 +414,6 @@ class Player(object):
         fg_num = int(self.sample_num * self.sample_ratio)
         bg_num = self.sample_num - fg_num
 
-        # assert len(fg_inds) > fg_num and len(bg_inds) > bg_num, 'sample size is too large.'
         if len(fg_inds) < fg_num or len(bg_inds) < bg_num: # TODO: to improve by ratio.
             tmp = min(len(fg_inds), len(bg_inds))
             fg_num = tmp - 1
@@ -421,10 +422,13 @@ class Player(object):
         if fg_num <= 0:
             raise RuntimeError('to improve sample bboxes code.')
             
+        assert len(fg_inds) > fg_num and len(bg_inds) > bg_num, 'sample size is too large.'
 
         if len(fg_inds) > fg_num:
             # fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
-            fg_inds = delta_iou.argsort()[-fg_num:]
+            fg_inds = np.array(delta_iou).argsort()[-fg_num:]
+
+            #print('sample last :', delta_iou[fg_inds[-1]])
 
         if len(bg_inds) > bg_num:
             bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
@@ -432,6 +436,8 @@ class Player(object):
         logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         inds = np.array(np.append(fg_inds, bg_inds))
         # logger.info(inds)
+
+        #print('max iou:', max(np.array(delta_iou)[inds])) 
         return bboxes[inds, :], np.array(actions)[inds].tolist(), tranform_bboxes[inds, :], np.array(delta_iou)[inds].tolist()
 
     def _get_rewards(self, actions, delta_iou):

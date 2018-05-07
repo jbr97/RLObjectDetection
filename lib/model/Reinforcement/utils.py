@@ -43,7 +43,7 @@ class AveMeter():
 
 
 class Counter(object):
-    def __init__(self, size=100):
+    def __init__(self, size=1000):
         self._size = size
         self.items = deque(list(), self._size)
 
@@ -57,10 +57,11 @@ class Counter(object):
         return len(self.items)
 
     def get_statinfo(self):
-        assert len(self.items) == self._size, 'not enough sample in the counter.'
+        # assert len(self.items) == self._size, 'not enough sample in the counter.'
         
         sorted_items = sorted(self.items)
-        a, b, c, d, e = 0, int(self._size/4), int(self._size/2), int(self._size/4*3), self._size-1  
+        nums = len(self.items)
+        a, b, c, d, e = 0, int(nums/4), int(nums/2), int(nums/4*3), nums-1  
 
         return sorted_items[a], sorted_items[b], sorted_items[c], sorted_items[d], sorted_items[e]
 
