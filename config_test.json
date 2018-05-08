@@ -20,5 +20,5 @@
   "decay_epoch": 1,
   "gamma": 1,
   "pretrain": "",
-  "resume": "ckpt/model-100.pth"
+  "resume": "ckpt/model-500.pth"
 }

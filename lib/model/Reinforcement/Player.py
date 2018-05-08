@@ -64,7 +64,6 @@ class Player(object):
                 imgs = inp[0]
                 bboxes = inp[1]
                 gts = inp[2]
-
                 for j in range(self.num_rl_steps):
                     # get actions from eval_net
                     actions = self.policy.get_action(imgs, bboxes).tolist()
@@ -323,7 +322,7 @@ class Player(object):
         :param delta_iou: [N]
         :return: sampled result
         """
-        fg_inds = np.where(np.array(delta_iou) >= 0)[0]
+        fg_inds = np.where(np.array(delta_iou) > 0)[0]
         bg_inds = np.where(np.array(delta_iou) < 0)[0]
         # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))

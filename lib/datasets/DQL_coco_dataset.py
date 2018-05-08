@@ -76,7 +76,7 @@ class COCODataset(Dataset):
             score = dt_box['score']
             cat_id = dt_box['category_id']
             cls_id = self.category_to_class[cat_id]
-            bboxes.append(bbox + [cat_id] + [score] + [cls_id])
+            bboxes.append(bbox + [cat_id] + [score] + [cls_id - 1])
         bboxes = np.array(bboxes, dtype=np.float32)
 
         gts = []
@@ -87,7 +87,7 @@ class COCODataset(Dataset):
             # score = gt_box['score']
             cat_id = gt_box['category_id']
             cls_id = self.category_to_class[cat_id]
-            gts.append(bbox + [cat_id] + [cls_id])
+            gts.append(bbox + [cat_id] + [cls_id - 1])
         gts = np.array(gts, dtype=np.float32)
 
         img = Image.open(filename)

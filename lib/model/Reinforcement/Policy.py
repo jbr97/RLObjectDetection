@@ -70,11 +70,11 @@ class DQN(object):
         :param bboxes:
         :return:
         """
-        batch_size = imgs.shape[0]
-
+        batch_size = bboxes.shape[0]
         img = Variable(imgs).cuda()
+        classes = Variable(torch.LongTensor(bboxes[:, 7]).contiguous().cuda())
         bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
-        classes = Variable(torch.FloatTensor(bboxes[:, 7])).contiguous().cuda()
+        #classes = Variable(torch.FloatTensor(bboxes[:, 7])).contiguous().cuda()
 
         values = self.eval_net(img, bboxes)
 
@@ -86,7 +86,7 @@ class DQN(object):
         max_inds = torch.max(values, 1)[1].cpu().data.numpy()
         action = []
         for max_val, max_ind in zip(max_vals, max_inds):
-            if max_val < 0:
+            if max_val < 0.05:
                 action.append(0)
             else:
                 action.append(max_ind)
@@ -98,14 +98,19 @@ class DQN(object):
 
     def learn(self, imgs, bboxes, actions, transform_bboxes, rewards, not_end):
         self.iters += 1
-        batch_size = imgs.shape[0]
+        batch_size = bboxes.shape[0]
 
         # learning rate decay
         # self._adjust_learning_rate()
 
         classes = bboxes[:, 7]
+        for cls in classes:
+            if 0 <= cls and cls <= 79:
+                continue
+            else:
+                logger.info(cls)
         for i in range(len(actions)):
-            actions[i] += classes[i] * self.action_num
+            actions[i] += classes[i]  * self.action_num
 
         imgs = Variable(imgs.cuda())
         input_dim = bboxes.shape[0]
@@ -113,7 +118,7 @@ class DQN(object):
         actions = Variable(torch.LongTensor(np.array(actions)).cuda())
         transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:, :5]).contiguous().cuda())
         rewards = Variable(torch.FloatTensor(rewards).cuda()).view(input_dim, 1)
-        classes = Variable(torch.FloatTensor(classes).contiguous().cuda())
+        classes = Variable(torch.LongTensor(classes).contiguous().cuda())
 
         Q_output = self.eval_net(imgs, bboxes)
         # logger.info("Shape of Q_output: {}".format(Q_output.shape))
