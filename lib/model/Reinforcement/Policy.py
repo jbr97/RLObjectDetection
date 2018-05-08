@@ -23,6 +23,8 @@ class DQN(object):
         self.gamma = config["gamma"]
         self.pretrain = config["pretrain"]
         self.resume = config["resume"]
+        self.class_num = config["num_classes"]
+        self.action_num = config["num_actions"]
         self.iters = 0
 
     def init_net(self):
@@ -68,11 +70,18 @@ class DQN(object):
         :param bboxes:
         :return:
         """
+        batch_size = imgs.shape[0]
+
         img = Variable(imgs).cuda()
         bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
+        classes = Variable(torch.FloatTensor(bboxes[:, 7])).contiguous().cuda()
 
         values = self.eval_net(img, bboxes)
-        
+
+        values = values.view(batch_size, self.class_num, self.action_num)
+        values = values[range(batch_size), classes, :].view(batch_size, self.action_num)
+        logger.info("the shape of values is {}".format(values.shape))
+
         max_vals = torch.max(values, 1)[0].cpu().data.numpy()
         max_inds = torch.max(values, 1)[1].cpu().data.numpy()
         action = []
@@ -89,9 +98,14 @@ class DQN(object):
 
     def learn(self, imgs, bboxes, actions, transform_bboxes, rewards, not_end):
         self.iters += 1
+        batch_size = imgs.shape[0]
 
         # learning rate decay
         # self._adjust_learning_rate()
+
+        classes = bboxes[:, 7]
+        for i in range(len(actions)):
+            actions[i] += classes[i] * self.action_num
 
         imgs = Variable(imgs.cuda())
         input_dim = bboxes.shape[0]
@@ -99,6 +113,7 @@ class DQN(object):
         actions = Variable(torch.LongTensor(np.array(actions)).cuda())
         transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:, :5]).contiguous().cuda())
         rewards = Variable(torch.FloatTensor(rewards).cuda()).view(input_dim, 1)
+        classes = Variable(torch.FloatTensor(classes).contiguous().cuda())
 
         Q_output = self.eval_net(imgs, bboxes)
         # logger.info("Shape of Q_output: {}".format(Q_output.shape))
@@ -107,6 +122,8 @@ class DQN(object):
         # logger.info("Qeval : {}".format(Q_eval.shape))
 
         Q_next = self.target_net(imgs, transform_bboxes).detach()
+        Q_next = Q_next.view(batch_size, self.class_num, self.action_num)
+        Q_next = Q_next[range(batch_size), classes, :].view(batch_size, self.action_num)
         Q_next_mask = Q_next.max(1)[0].view(input_dim, 1)
         Q_target = rewards + self.gamma * Q_next_mask * not_end
 
