@@ -75,8 +75,9 @@ class DQN(object):
         batch_size = bboxes.shape[0]
 
         img = Variable(imgs).cuda()
-        bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
         classes = Variable(torch.LongTensor(bboxes[:, 7])).contiguous().cuda()             # TODO: Batch_ID在计算什么的时候会用到   roi_align时会用到. DONE
+        bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
+        
 
         values = self.eval_net(img, bboxes)
 

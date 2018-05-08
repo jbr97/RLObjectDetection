@@ -404,6 +404,7 @@ class Player(object):
             n = bbox.shape[0]
             bounding_boxes = np.zeros((n, 4))
             for i in range(n):
+                x1, y1, x2, y2 = bbox[i, :]
                 bounding_boxes[i, :] = np.array([ x1, y1, x2-x1, y2-y1 ])
         else:
             raise RuntimeError('Unrecognized size of bbox.')
@@ -483,7 +484,8 @@ class Player(object):
             if actions[i] == 0:
                 rewards.append(0.02)
             else:
-                rewards.append(math.tan(delta_iou[i] / 0.14))
+                # rewards.append(math.tan(delta_iou[i] / 0.14))
+                rewards.append(delta_iou[i])
         return rewards
 
 
