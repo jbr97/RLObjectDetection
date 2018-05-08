@@ -88,3 +88,32 @@ class COCODataLoader(torch.utils.data.DataLoader):
                 unpad_image_sizes,
                 filenames,
                 img_ids]
+
+
+def test(root_dir, ann_file, dt_file):
+    import torchvision.transforms as transforms
+    from DQL_coco_dataset import COCODataset, COCOTransform
+
+    normalize = transforms.Normalize(mean=[0.4485295, 0.4249905, 0.39198247],
+                                     std=[0.12032582, 0.12394787, 0.14252729])
+    dataset = COCODataset(root_dir, ann_file, dt_file, COCOTransform([800], 1200, flip=False), normalize_fn=normalize)
+
+    loader = COCODataLoader(dataset, batch_size=2, shuffle=False, num_workers=6)
+    
+    for i, inp in enumerate(loader):
+        print('image variable size {} type {}'.format(inp[0].size(), type(inp[0])))
+        print('bboxes size {} type {}'.format(inp[1].shape, type(inp[1])))
+        print('gtruth size {} type {}'.format(inp[2].shape, type(inp[2])))
+        print('img max_{}, min_{}, mean_{}'.format(inp[0][0].max(), inp[0][0].min(), inp[0][0].mean()))
+        print(inp[3])
+        print(inp[1][0][0], inp[2][0][0])
+        print(inp[1][0][-1], inp[2][0][-1])
+        print(inp[1][1][0], inp[2][1][0])
+        
+        raise RuntimeError('Error')
+
+if __name__=='__main__':
+    root_dir = "../data/coco/images/train2014" 
+    ann_file = "../data/coco/annotations/instances_train2014.json"
+    dt_file = "../data/output/detections_train2014_results.json"
+    test(root_dir, ann_file, dt_file)
