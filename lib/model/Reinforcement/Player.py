@@ -422,7 +422,7 @@ class Player(object):
         if fg_num <= 0:
             raise RuntimeError('to improve sample bboxes code.')
             
-        assert len(fg_inds) > fg_num and len(bg_inds) > bg_num, 'sample size is too large.'
+        assert len(fg_inds) >= fg_num and len(bg_inds) >= bg_num, 'sample size is too large.'
 
         if len(fg_inds) > fg_num:
             # fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
