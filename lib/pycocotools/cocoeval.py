@@ -414,7 +414,7 @@ class COCOeval:
                 mean_s = -1
             else:
                 mean_s = np.mean(s[s>-1])
-            print(iStr.format(titleStr, typeStr, iouStr, areaStr, maxDetsStr, '%.3f'%(float(mean_s))))
+            print(iStr.format(titleStr, typeStr, iouStr, areaStr, maxDetsStr, '%.7f'%(float(mean_s))))
             return mean_s
 
         if not self.eval:

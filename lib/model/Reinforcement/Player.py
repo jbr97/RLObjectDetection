@@ -117,7 +117,7 @@ class Player(object):
                         logger.info('Train: [{0}][{1}/{2}]\t'
                                     'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                                     'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                                    'Loss {losses.val:.3f} ({losses.avg:.3f})\t'.format(
+                                    'Loss {losses.val:.4f} ({losses.avg:.4f})\t'.format(
                                     epoch + 1, i, len(train_dataloader),
                                     batch_time=batch_time,
                                     data_time=data_time,
@@ -400,7 +400,7 @@ class Player(object):
         :param delta_iou: [N]
         :return: sampled result
         """
-        fg_inds = np.where(np.array(delta_iou) > 0)[0]
+        fg_inds = np.where(np.array(delta_iou) > 0)[0]                                              #  >= changes to >
         bg_inds = np.where(np.array(delta_iou) < 0)[0]
         # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))
