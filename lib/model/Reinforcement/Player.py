@@ -89,9 +89,9 @@ class Player(object):
                     # we can get delta_iou
                     # bboxes, actions, transform_bboxes, delta_iou
                     transform_bboxes = self._transform(bboxes, actions)                     # TODO: transform换个写法.       DONE
-                    old_iou = self._compute_iou(gts, bboxes)                                # TODO: iou 需要考虑到category.   DONE
+                    old_iou = self._computeIoU(gts, bboxes)                                # TODO: iou 需要考虑到category.   DONE
                     # logger.info(len(old_iou))
-                    new_iou = self._compute_iou(gts, transform_bboxes)
+                    new_iou = self._computeIoU(gts, transform_bboxes)
                     # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
@@ -260,57 +260,89 @@ class Player(object):
                 w = x2 - x
                 h = y2 - y
                 
-                # 1,2,3: [x,y,w,h] -> [x+0.02w, y, w, h]
-                if action == 1:   x += w * 0.02
-                elif action == 2: x += w * 0.05
-                elif action == 3: x += w * 0.1
-                # 4,5,6: [x,y,w,h] -> [x, y+0.02h, w, h]
-                elif action == 4: y += h * 0.02
-                elif action == 5: y += h * 0.05
-                elif action == 6: y += h * 0.1
-                # 7,8,9: [x,y,w,h] -> [x, y, w+0.02w, h]
-                elif action == 7: w += w * 0.02
-                elif action == 8: w += w * 0.05
-                elif action == 9: w += w * 0.1
-                # 10,11,12: [x,y,w,h] -> [x, y, w, h+0.02h]
-                elif action == 10: h += h * 0.02
-                elif action == 11: h += h * 0.05
-                elif action == 12: h += h * 0.1
-                # 13,14,15: [x,y,w,h] -> [x-0.02w, y, w, h]
-                elif action == 13: x -= w * 0.02
-                elif action == 14: x -= w * 0.05
-                elif action == 15: x -= w * 0.1
-                # 16,17,18: [x,y,w,h] -> [x, y-0.02h, w, h]
-                elif action == 16: y -= h * 0.02
-                elif action == 17: y -= h * 0.05
-                elif action == 18: y -= h * 0.1
-                # 19,20,21: [x,y,w,h] -> [x, y, w-0.02w, h]
-                elif action == 19: w -= w * 0.02
-                elif action == 20: w -= w * 0.05
-                elif action == 21: w -= w * 0.1
-                # 22,23,24: [x,y,w,h] -> [x, y, w, h-0.02h]
-                elif action == 22: h -= h * 0.02
-                elif action == 23: h -= h * 0.05
-                elif action == 24: h -= h * 0.1
+                # 1-7: [x,y,w,h] -> [x+0.5w, y, w, h]
+                if action == 1:   x += w * 0.5**1
+                elif action == 2: x += w * 0.5**2
+                elif action == 3: x += w * 0.5**3
+                elif action == 4: x += w * 0.5**4
+                elif action == 5: x += w * 0.5**5
+                elif action == 6: x += w * 0.5**6
+                elif action == 7: x += w * 0.5**7
+                # 8-14: [x,y,w,h] -> [x, y+0.5h, w, h]
+                elif action == 8: y += w * 0.5**1
+                elif action == 9: y += w * 0.5**2
+                elif action == 10: y += w * 0.5**3
+                elif action == 11: y += w * 0.5**4
+                elif action == 12: y += w * 0.5**5
+                elif action == 13: y += w * 0.5**6
+                elif action == 14: y += w * 0.5**7
+                # 15-21: [x,y,w,h] -> [x, y, w+0.5w, h]
+                elif action == 15: w += w * 0.5**1
+                elif action == 16: w += w * 0.5**2
+                elif action == 17: w += w * 0.5**3
+                elif action == 18: w += w * 0.5**4
+                elif action == 19: w += w * 0.5**5
+                elif action == 20: w += w * 0.5**6
+                elif action == 21: w += w * 0.5**7
+                # 22-28: [x,y,w,h] -> [x, y, w, h+0.5h]
+                elif action == 22: h += w * 0.5**1
+                elif action == 23: h += w * 0.5**2
+                elif action == 24: h += w * 0.5**3
+                elif action == 25: h += w * 0.5**4
+                elif action == 26: h += w * 0.5**5
+                elif action == 27: h += w * 0.5**6
+                elif action == 28: h += w * 0.5**7
+                # 29-35: [x,y,w,h] -> [x-0.5w, y, w, h]
+                elif action == 29: x -= w * 0.5**1
+                elif action == 30: x -= w * 0.5**2
+                elif action == 31: x -= w * 0.5**3
+                elif action == 32: x -= w * 0.5**4
+                elif action == 33: x -= w * 0.5**5
+                elif action == 34: x -= w * 0.5**6
+                elif action == 35: x -= w * 0.5**7
+                # 36-42: [x,y,w,h] -> [x, y-0.5h, w, h]
+                elif action == 36: y -= w * 0.5**1
+                elif action == 37: y -= w * 0.5**2
+                elif action == 38: y -= w * 0.5**3
+                elif action == 39: y -= w * 0.5**4
+                elif action == 40: y -= w * 0.5**5
+                elif action == 41: y -= w * 0.5**6
+                elif action == 42: y -= w * 0.5**7
+                # 43-49: [x,y,w,h] -> [x, y, w-0.5w, h]
+                elif action == 43: w -= w * 0.5**1
+                elif action == 44: w -= w * 0.5**2
+                elif action == 45: w -= w * 0.5**3
+                elif action == 46: w -= w * 0.5**4
+                elif action == 47: w -= w * 0.5**5
+                elif action == 48: w -= w * 0.5**6
+                elif action == 49: w -= w * 0.5**7
+                # 22,23,24: [x,y,w,h] -> [x, y, w, h-0.5h]
+                elif action == 50: h -= w * 0.5**1
+                elif action == 51: h -= w * 0.5**2
+                elif action == 52: h -= w * 0.5**3
+                elif action == 53: h -= w * 0.5**4
+                elif action == 54: h -= w * 0.5**5
+                elif action == 55: h -= w * 0.5**6
+                elif action == 56: h -= w * 0.5**7
                 else:
                     raise RuntimeError('Unrecognized action.')
 
                 transform_bboxes[i, 1:5] = np.array([x, y, x+w, y+h])
         return transform_bboxes
 
-    def _compute_iou(self, gts, bboxes):
-        """
-        :param gts: [N, 6] [ids, x1, y1, x2, y2, label]
-        :param bboxes: [N, 6] [ids, x1, y1, x2, y2, label]
-        :return: [N] iou
-        """
-        ious = []
-        for i in range(self.batch_size):
-            gt = gts[gts[:, 0] == i][:, 1:5]
-            bbox = bboxes[bboxes[:, 0] == i][:, 1:5]
-            iou = np.max(self._bbox_iou_overlaps(bbox, gt), 1).tolist()
-            ious.extend(iou)
-        return ious
+    # def _compute_iou(self, gts, bboxes):
+    #     """
+    #     :param gts: [N, 6] [ids, x1, y1, x2, y2, label]
+    #     :param bboxes: [N, 6] [ids, x1, y1, x2, y2, label]
+    #     :return: [N] iou
+    #     """
+    #     ious = []
+    #     for i in range(self.batch_size):
+    #         gt = gts[gts[:, 0] == i][:, 1:5]
+    #         bbox = bboxes[bboxes[:, 0] == i][:, 1:5]
+    #         iou = np.max(self._bbox_iou_overlaps(bbox, gt), 1).tolist()
+    #         ious.extend(iou)
+    #     return ious
 
     # # add lyj
     # # by jbr   
@@ -328,8 +360,8 @@ class Player(object):
 
     def _computeIoU(self, gts, bboxes):
         """
-        gts: [N, 7], [batch_id, x1, y1, x2, y2, category, iscrowd]
-        bboxes: [N, 7], [batch_id, x1, y1, x2, y2, category, score]
+        gts: [N, 7], [batch_id, x1, y1, x2, y2, category, iscrowd, cls_id]
+        bboxes: [N, 7], [batch_id, x1, y1, x2, y2, category, score, cls_id]
         """
 
 

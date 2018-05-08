@@ -106,7 +106,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, action_num=25):
+    def __init__(self, block, layers, class_num=80, action_num=25):
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
@@ -123,7 +123,7 @@ class ResNet(nn.Module):
 
         self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
-        self.fc1 = nn.Linear(2048, action_num)
+        self.fc1 = nn.Linear(2048, class_num * action_num)
         #self.relu = nn.ReLU()
         #self.fc2 = nn.Linear(2048, action_num)
 

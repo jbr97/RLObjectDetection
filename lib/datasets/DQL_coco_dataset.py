@@ -37,8 +37,8 @@ class COCODataset(Dataset):
 
         category_ids = self.coco.cats.keys()
 
-        self.category_to_class = {c: i + 1 for i, c in enumerate(sorted(category_ids))}
-        self.class_to_category = {i + 1: c for i, c in enumerate(sorted(category_ids))}
+        self.category_to_class = {c: i for i, c in enumerate(sorted(category_ids))}
+        self.class_to_category = {i: c for i, c in enumerate(sorted(category_ids))}
 
         self.img_ids = list(set([_['image_id'] for _ in self.coco.anns.values()]))
         self.annIds = self.coco.getAnnIds(imgIds=self.img_ids)
@@ -61,8 +61,8 @@ class COCODataset(Dataset):
         Args: index of data
         Return: a single data:
             image_data: FloatTensor, shape [1, 3, h, w]
-            bboxes: np.array, shape [N, 6] (x, y, x2, y2, category, score)
-            gts: np.array, shape [M, 5] (x, y, x2, y2, category, iscrowd)
+            bboxes: np.array, shape [N, 6] (x, y, x2, y2, category, score, cls_id)       cls_id： category是不连续的整数，cls_id将其连续化，方便构建整体矩阵.
+            gts: np.array, shape [M, 5] (x, y, x2, y2, category, iscrowd, cls_id)
             image_info: list of [resized_image_h, resized_image_w, resize_scale, origin_image_h, origin_image_w]
             filename: str
         Warning:
@@ -82,7 +82,7 @@ class COCODataset(Dataset):
             score = dt_box['score']
             cat_id = dt_box['category_id']
             cls_id = self.category_to_class[cat_id]
-            bboxes.append(bbox + [cat_id] + [score])
+            bboxes.append(bbox + [cat_id] + [score] + [cls_id])
         bboxes = np.array(bboxes, dtype=np.float32)
 
         gts = []
@@ -94,7 +94,7 @@ class COCODataset(Dataset):
             cat_id = gt_box['category_id']
             iscrowd = gt_box['iscrowd']
             cls_id = self.category_to_class[cat_id]
-            gts.append(bbox + [cat_id] + [int(iscrowd)])
+            gts.append(bbox + [cat_id] + [int(iscrowd)] + [cls_id])
         gts = np.array(gts, dtype=np.float32)
 
         # print('gts shape:', gts.shape)
