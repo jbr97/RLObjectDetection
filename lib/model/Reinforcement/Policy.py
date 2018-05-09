@@ -82,7 +82,7 @@ class DQN(object):
         values = self.eval_net(img, bboxes)
 
         values = values.view(batch_size, self.class_num, self.action_num)
-        values = values[range(batch_size), classes, :].view(batch_size, self.action_num)    # TODO: 检查index是否选取正常   DONE
+        values = values[range(batch_size), classes, range(1, self.action_num)].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
         logger.info("the shape of values is {}".format(values.shape))
         
         max_vals = torch.max(values, 1)[0].cpu().data.numpy()
@@ -114,16 +114,16 @@ class DQN(object):
         values = self.eval_net(img, bboxes)
 
         values = values.view(batch_size, self.class_num, self.action_num)
-        values = values[range(batch_size), classes, :].view(batch_size, self.action_num)    # TODO: 检查index是否选取正常   DONE
+        values = values[range(batch_size), classes, range(1, self.action_num)].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
         logger.info("the shape of values is {}".format(values.shape))
         
         max_vals = torch.max(values, 1)[0].cpu().data.numpy()
         max_inds = torch.max(values, 1)[1].cpu().data.numpy()
         action = []
 
-        print('max vals shape:', max_vals.shape)
+        # print('max vals shape:', max_vals.shape)
 
-        reward_threshold = np.sort(max)[int(len(max_vals)*(1-percentage))]
+        reward_threshold = np.sort(max_vals)[int(len(max_vals)*(1-percentage))]
 
         for max_val, max_ind in zip(max_vals, max_inds):
             if max_val < reward_threshold:
@@ -134,8 +134,7 @@ class DQN(object):
         # action = torch.max(values, 1)[1].cpu().data.numpy()
         # logger.info(action)
         # action = action[0]
-        return action
-        
+        return action        
 
 
     def learn(self, imgs, bboxes, actions, transform_bboxes, rewards, not_end):

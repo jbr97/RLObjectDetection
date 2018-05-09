@@ -151,6 +151,35 @@ class Player(object):
                     bboxes = transform_bboxes
                     iters += 1
 
+    def _get_best_action(self, gts, bboxes):
+        actions = []
+
+        for i in range(bboxes.shape[0]):
+
+            bbox = bboxes[i, :][np.newaxis, :]
+            max_diou = 0
+            best_act = 0
+            for act in range(self.num_action):
+
+                t_bbox = self._transform(bbox, [act])
+
+                iou1 = self._computeIoU(gts, bbox)
+                iou2 = self._computeIoU(gts, t_bbox)
+
+
+                assert len(iou1) == 1 and len(iou2) == 1, 'Unmatched numbers of computeIoU.'
+
+                iou1 = iou1[0]
+                iou2 = iou2[0]
+
+                if max_diou < iou2 - iou1:
+                    max_diou = iou2 - iou1
+                    best_act = act
+
+            actions.append(best_act)
+        return actions
+            
+
     def eval(self, val_data_loader):
         tot_g_0 = 0
         tot_ge_0 = 0
@@ -174,7 +203,9 @@ class Player(object):
             # get actions
             # actions = self.policy.get_action(imgs, bboxes).tolist()
 
-            actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
+            # actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
+
+            actions = self._get_best_action(gts, bboxes)
 
 
             for action in actions:
@@ -263,6 +294,9 @@ class Player(object):
         :param actions:
         :return:
         """
+
+        assert bboxes.shape[0] == len(actions), 'Unmatched bboxes and actiosn.'
+
         transform_bboxes = bboxes.copy()
         for i, action in enumerate(actions):
             if action == 0:
@@ -378,7 +412,10 @@ class Player(object):
 
 
         ious = []
-        for i in range(self.batch_size):
+        batch_ids = bboxes[:, 0].tolist()
+
+        # for i in range(self.batch_size):
+        for i in batch_ids:
             # gt_ind = np.where(gts[:, 0] == i)[0]
             # gt = gts[gt_ind][:, 1:7]
             # dt_ind = np.where(bboxes[:, 0] == i)[0]
