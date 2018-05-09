@@ -69,9 +69,9 @@ class Player(object):
                 bboxes = inp[1]
                 gts = inp[2]
 
-                # print('image shape:', imgs.shape)
-                # print('bboxes shape:', bboxes.shape)
-                # print('gts shape:', gts.shape)
+                print('image shape:', imgs.shape)
+                print('bboxes shape:', bboxes.shape)
+                print('gts shape:', gts.shape)
                 # raise RuntimeError
 
                 for j in range(self.num_rl_steps):
@@ -94,6 +94,12 @@ class Player(object):
                     new_iou = self._computeIoU(gts, transform_bboxes)
                     # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
+
+
+
+                    print('len of actions:', len(actions))
+                    print('delta iou lenght:', len(delta_iou))
+                    print('leng old iou:', len(new_iou))
 
 
                     # sample bboxes for a positive and negitive balance
@@ -412,7 +418,7 @@ class Player(object):
 
 
         ious = []
-        batch_ids = bboxes[:, 0].tolist()
+        batch_ids = set(bboxes[:, 0].tolist())
 
         # for i in range(self.batch_size):
         for i in batch_ids:
@@ -553,6 +559,7 @@ class Player(object):
             for i in range(len(sorted_iou)):
                 if sorted_iou[i] > a:
                     return i
+
 
         b2 = get_index(a2)
         b4 = get_index(a4)
