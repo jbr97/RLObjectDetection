@@ -574,13 +574,27 @@ class Player(object):
         print('b8:', b8)
 
 
-        c0 = np.random.choice(range(0, b2), avg_num, False)
-        c2 = np.random.choice(range(b2, b4), avg_num, False) 
-        c4 = np.random.choice(range(b4, b6), avg_num, False)
-        c6 = np.random.choice(range(b6, b8), avg_num, False)
-        c8 = np.random.choice(range(b8, len(sorted_iou)), fg_num-4*avg_num, False)
+        def get_random_ind(b0, b1):
+            if b1 - b0 > avg_num:
+                c = np.random.choice(range(b0, b1), avg_num, False)
+            elif b1 - b0 > 0:
+                c = np.array(range(b0, b1))
+            else:
+                c = []
+            return c
 
-        
+        c0 = get_random_ind(0, b2)
+        c2 = get_random_ind(b2, b4)
+        c4 = get_random_ind(b4, b6)
+        c6 = get_random_ind(b6, b8)
+        c8 = get_random_ind(b8, len(sorted_iou))
+
+        # c0 = np.random.choice(range(0, b2), avg_num, False)
+        # c2 = np.random.choice(range(b2, b4), avg_num, False) 
+        # c4 = np.random.choice(range(b4, b6), avg_num, False)
+        # c6 = np.random.choice(range(b6, b8), avg_num, False)
+        # c8 = np.random.choice(range(b8, len(sorted_iou)), fg_num-4*avg_num, False)
+
 
         d0 = np.array(fg_inds)[sorted_index[c0]]
         d2 = np.array(fg_inds)[sorted_index[c2]]
