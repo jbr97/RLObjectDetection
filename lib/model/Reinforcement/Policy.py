@@ -82,7 +82,7 @@ class DQN(object):
         values = self.eval_net(img, bboxes)
 
         values = values.view(batch_size, self.class_num, self.action_num)
-        values = values[range(batch_size), classes, range(1, self.action_num)].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
+        values = values[range(batch_size), classes, 1:self.action_num].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
         logger.info("the shape of values is {}".format(values.shape))
         
         max_vals = torch.max(values, 1)[0].cpu().data.numpy()
@@ -92,7 +92,7 @@ class DQN(object):
             if max_val < self.reward_threshold:
                 action.append(0)
             else:
-                action.append(max_ind)
+                action.append(max_ind+1)
         action = np.array(action)
         # action = torch.max(values, 1)[1].cpu().data.numpy()
         # logger.info(action)
@@ -114,7 +114,7 @@ class DQN(object):
         values = self.eval_net(img, bboxes)
 
         values = values.view(batch_size, self.class_num, self.action_num)
-        values = values[range(batch_size), classes, range(1, self.action_num)].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
+        values = values[range(batch_size), classes, 1:self.action_num].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
         logger.info("the shape of values is {}".format(values.shape))
         
         max_vals = torch.max(values, 1)[0].cpu().data.numpy()
@@ -129,7 +129,7 @@ class DQN(object):
             if max_val < reward_threshold:
                 action.append(0)
             else:
-                action.append(max_ind)
+                action.append(max_ind+1)
         action = np.array(action)
         # action = torch.max(values, 1)[1].cpu().data.numpy()
         # logger.info(action)

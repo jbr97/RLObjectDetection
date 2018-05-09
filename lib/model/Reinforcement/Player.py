@@ -510,17 +510,17 @@ class Player(object):
             # fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
             # fg_inds = np.array(delta_iou).argsort()[-fg_num:]
 
-            fg_iou = delta_iou[fg_inds]
+            fg_iou = np.array(delta_iou)[fg_inds]
             f1, f2, f3, f4, f5 = self._get_percent_index(fg_inds, fg_iou, fg_num)
 
         if len(bg_inds) > bg_num:
             # bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
-            bg_iou = delta_iou[bg_inds]
+            bg_iou = np.array(delta_iou)[bg_inds]
             b1, b2, b3, b4, b5 = self._get_percent_index(bg_inds, bg_iou, bg_num)
         
         logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # inds = np.array(np.append(fg_inds, bg_inds))
-        inds = np.array(np.append(f1, f2, f3, f4, f5, b1, b2, b3, b4, b5))
+        inds = np.array(np.concatenate([f1, f2, f3, f4, f5, b1, b2, b3, b4, b5]))
         # logger.info(inds)
 
         #print('max iou:', max(np.array(delta_iou)[inds])) 
@@ -543,6 +543,11 @@ class Player(object):
         a6 = min_iou + (max_iou - min_iou) * 0.6
         a8 = min_iou + (max_iou - min_iou) * 0.8
 
+        print('a2:', a2)
+        print('a4:', a4)
+        print('a6:', a6)
+        print('a8:', a8)
+
 
         def get_index(a):
             for i in range(len(sorted_iou)):
@@ -556,16 +561,19 @@ class Player(object):
 
         avg_num = int(fg_num * 0.2)
 
+        print('b2:', b2)
+        print('b4:', b4)
+        print('b6:', b6)
+        print('b8:', b8)
+
+
         c0 = np.random.choice(range(0, b2), avg_num, False)
         c2 = np.random.choice(range(b2, b4), avg_num, False) 
         c4 = np.random.choice(range(b4, b6), avg_num, False)
         c6 = np.random.choice(range(b6, b8), avg_num, False)
         c8 = np.random.choice(range(b8, len(sorted_iou)), fg_num-4*avg_num, False)
 
-        print('b2:', b2)
-        print('b4:', b4)
-        print('b6:', b6)
-        print('b8:', b8)
+        
 
         d0 = np.array(fg_inds)[sorted_index[c0]]
         d2 = np.array(fg_inds)[sorted_index[c2]]
