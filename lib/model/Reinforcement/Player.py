@@ -165,6 +165,8 @@ class Player(object):
             bbox = bboxes[i, :][np.newaxis, :]
             max_diou = 0
             best_act = 0
+            cnt_eq_iou = 0
+
             for act in range(self.num_actions):
 
                 t_bbox = self._transform(bbox, [act])
@@ -178,10 +180,14 @@ class Player(object):
                 iou1 = iou1[0]
                 iou2 = iou2[0]
 
+                if iou1 == iou2:
+                    cnt_eq_iou += 1
+
                 if max_diou < iou2 - iou1:
                     max_diou = iou2 - iou1
                     best_act = act
 
+            print('num of uneffected actions:', cnt_eq_iou)
             actions.append(best_act)
         return actions
             
@@ -306,7 +312,7 @@ class Player(object):
         transform_bboxes = bboxes.copy()
         for i, action in enumerate(actions):
             if action == 0:
-                pass
+                continue
             else:
                 x, y, x2, y2= transform_bboxes[i, 1:5]
                 w = x2 - x
@@ -321,13 +327,13 @@ class Player(object):
                 elif action == 6: x += w * 0.5**6
                 elif action == 7: x += w * 0.5**7
                 # 8-14: [x,y,w,h] -> [x, y+0.5h, w, h]
-                elif action == 8: y += w * 0.5**1
-                elif action == 9: y += w * 0.5**2
-                elif action == 10: y += w * 0.5**3
-                elif action == 11: y += w * 0.5**4
-                elif action == 12: y += w * 0.5**5
-                elif action == 13: y += w * 0.5**6
-                elif action == 14: y += w * 0.5**7
+                elif action == 8:  y += h * 0.5**1
+                elif action == 9:  y += h * 0.5**2
+                elif action == 10: y += h * 0.5**3
+                elif action == 11: y += h * 0.5**4
+                elif action == 12: y += h * 0.5**5
+                elif action == 13: y += h * 0.5**6
+                elif action == 14: y += h * 0.5**7
                 # 15-21: [x,y,w,h] -> [x, y, w+0.5w, h]
                 elif action == 15: w += w * 0.5**1
                 elif action == 16: w += w * 0.5**2
@@ -337,13 +343,13 @@ class Player(object):
                 elif action == 20: w += w * 0.5**6
                 elif action == 21: w += w * 0.5**7
                 # 22-28: [x,y,w,h] -> [x, y, w, h+0.5h]
-                elif action == 22: h += w * 0.5**1
-                elif action == 23: h += w * 0.5**2
-                elif action == 24: h += w * 0.5**3
-                elif action == 25: h += w * 0.5**4
-                elif action == 26: h += w * 0.5**5
-                elif action == 27: h += w * 0.5**6
-                elif action == 28: h += w * 0.5**7
+                elif action == 22: h += h * 0.5**1
+                elif action == 23: h += h * 0.5**2
+                elif action == 24: h += h * 0.5**3
+                elif action == 25: h += h * 0.5**4
+                elif action == 26: h += h * 0.5**5
+                elif action == 27: h += h * 0.5**6
+                elif action == 28: h += h * 0.5**7
                 # 29-35: [x,y,w,h] -> [x-0.5w, y, w, h]
                 elif action == 29: x -= w * 0.5**1
                 elif action == 30: x -= w * 0.5**2
@@ -353,13 +359,13 @@ class Player(object):
                 elif action == 34: x -= w * 0.5**6
                 elif action == 35: x -= w * 0.5**7
                 # 36-42: [x,y,w,h] -> [x, y-0.5h, w, h]
-                elif action == 36: y -= w * 0.5**1
-                elif action == 37: y -= w * 0.5**2
-                elif action == 38: y -= w * 0.5**3
-                elif action == 39: y -= w * 0.5**4
-                elif action == 40: y -= w * 0.5**5
-                elif action == 41: y -= w * 0.5**6
-                elif action == 42: y -= w * 0.5**7
+                elif action == 36: y -= h * 0.5**1
+                elif action == 37: y -= h * 0.5**2
+                elif action == 38: y -= h * 0.5**3
+                elif action == 39: y -= h * 0.5**4
+                elif action == 40: y -= h * 0.5**5
+                elif action == 41: y -= h * 0.5**6
+                elif action == 42: y -= h * 0.5**7
                 # 43-49: [x,y,w,h] -> [x, y, w-0.5w, h]
                 elif action == 43: w -= w * 0.5**1
                 elif action == 44: w -= w * 0.5**2
@@ -369,13 +375,13 @@ class Player(object):
                 elif action == 48: w -= w * 0.5**6
                 elif action == 49: w -= w * 0.5**7
                 # 22,23,24: [x,y,w,h] -> [x, y, w, h-0.5h]
-                elif action == 50: h -= w * 0.5**1
-                elif action == 51: h -= w * 0.5**2
-                elif action == 52: h -= w * 0.5**3
-                elif action == 53: h -= w * 0.5**4
-                elif action == 54: h -= w * 0.5**5
-                elif action == 55: h -= w * 0.5**6
-                elif action == 56: h -= w * 0.5**7
+                elif action == 50: h -= h * 0.5**1
+                elif action == 51: h -= h * 0.5**2
+                elif action == 52: h -= h * 0.5**3
+                elif action == 53: h -= h * 0.5**4
+                elif action == 54: h -= h * 0.5**5
+                elif action == 55: h -= h * 0.5**6
+                elif action == 56: h -= h * 0.5**7
                 else:
                     raise RuntimeError('Unrecognized action.')
 
@@ -513,20 +519,20 @@ class Player(object):
         assert len(fg_inds) >= fg_num and len(bg_inds) >= bg_num, 'sample size is too large.'
 
         if len(fg_inds) > fg_num:
-            # fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
+            fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
             # fg_inds = np.array(delta_iou).argsort()[-fg_num:]
 
-            fg_iou = np.array(delta_iou)[fg_inds]
-            f1, f2, f3, f4, f5 = self._get_percent_index(fg_inds, fg_iou, fg_num)
+            # fg_iou = np.array(delta_iou)[fg_inds]
+            # f1, f2, f3, f4, f5 = self._get_percent_index(fg_inds, fg_iou, fg_num)
 
         if len(bg_inds) > bg_num:
-            # bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
-            bg_iou = np.array(delta_iou)[bg_inds]
-            b1, b2, b3, b4, b5 = self._get_percent_index(bg_inds, bg_iou, bg_num)
+            bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
+            # bg_iou = np.array(delta_iou)[bg_inds]
+            # b1, b2, b3, b4, b5 = self._get_percent_index(bg_inds, bg_iou, bg_num)
         
         logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
-        # inds = np.array(np.append(fg_inds, bg_inds))
-        inds = np.array(np.concatenate([f1, f2, f3, f4, f5, b1, b2, b3, b4, b5]))
+        inds = np.array(np.append(fg_inds, bg_inds))
+        # inds = np.array(np.concatenate([f1, f2, f3, f4, f5, b1, b2, b3, b4, b5]))
         # logger.info(inds)
 
         #print('max iou:', max(np.array(delta_iou)[inds])) 

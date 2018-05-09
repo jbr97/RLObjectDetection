@@ -123,7 +123,8 @@ class DQN(object):
 
         # print('max vals shape:', max_vals.shape)
 
-        reward_threshold = np.sort(max_vals)[int(len(max_vals)*(1-percentage))]
+        threshold_ind = int(len(max_vals)*(1-percentage))
+        reward_threshold = np.sort(max_vals)[threshold_ind]
 
         for max_val, max_ind in zip(max_vals, max_inds):
             if max_val < reward_threshold:
@@ -131,6 +132,10 @@ class DQN(object):
             else:
                 action.append(max_ind+1)
         action = np.array(action)
+
+        print('threshold_ind:{},  reward_t:{},  min_reward:{}'.format(threshold_ind, 
+                                                                      reward_threshold, np.sort(max_vals)[0]))
+        
         # action = torch.max(values, 1)[1].cpu().data.numpy()
         # logger.info(action)
         # action = action[0]
@@ -152,28 +157,31 @@ class DQN(object):
                 logger.info(cls)
                 raise RuntimeError('Unrecognized class.')
 
-        for i in range(len(actions)):
-            actions[i] += classes[i] * self.action_num
+        # for i in range(len(actions)):
+        #     actions[i] += classes[i] * self.action_num
 
         imgs = Variable(imgs.cuda())
         input_dim = bboxes.shape[0]
+
         bboxes = Variable(torch.FloatTensor(bboxes[:, :5]).contiguous().cuda())
         actions = Variable(torch.LongTensor(np.array(actions)).cuda())
         transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:, :5]).contiguous().cuda())
         rewards = Variable(torch.FloatTensor(rewards).cuda()).view(input_dim, 1)
         classes = Variable(torch.LongTensor(classes).contiguous().cuda())
 
-        Q_output = self.eval_net(imgs, bboxes)
+        Q_output = self.eval_net(imgs, bboxes).view(batch_size, self.class_num, self.action_num)
         # logger.info("Shape of Q_output: {}".format(Q_output.shape))
         # logger.info("Shape of actions: {}".format(actions.shape))
-        Q_eval = Q_output[range(Q_output.shape[0]), actions].view(input_dim, 1)
+        Q_eval = Q_output[range(Q_output.shape[0]), classes, actions].view(input_dim, 1)
+        # Q_eval = Q_output[range(Q_output.shape[0]), actions].view(input_dim, 1)
         # logger.info("Qeval : {}".format(Q_eval.shape))
 
-        Q_next = self.target_net(imgs, transform_bboxes).detach()
-        Q_next = Q_next.view(batch_size, self.class_num, self.action_num)
-        Q_next = Q_next[range(batch_size), classes, :].view(batch_size, self.action_num)
-        Q_next_mask = Q_next.max(1)[0].view(input_dim, 1)
-        Q_target = rewards + self.gamma * Q_next_mask * not_end
+        # Q_next = self.target_net(imgs, transform_bboxes).detach()
+        # Q_next = Q_next.view(batch_size, self.class_num, self.action_num)
+        # Q_next = Q_next[range(batch_size), classes, :].view(batch_size, self.action_num)
+        # Q_next_mask = Q_next.max(1)[0].view(input_dim, 1)
+        # Q_target = rewards + self.gamma * Q_next_mask * not_end
+        Q_target = rewards
 
         loss = self.loss_func(Q_eval, Q_target)
         # logger.info("Loss {}".format(loss))
