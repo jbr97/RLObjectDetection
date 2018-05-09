@@ -159,7 +159,7 @@ class Player(object):
             bbox = bboxes[i, :][np.newaxis, :]
             max_diou = 0
             best_act = 0
-            for act in range(self.num_action):
+            for act in range(self.num_actions):
 
                 t_bbox = self._transform(bbox, [act])
 
