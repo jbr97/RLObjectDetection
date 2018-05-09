@@ -55,8 +55,8 @@ class Player(object):
         batch_time = AveMeter(30)
         data_time = AveMeter(30)
 
-        reward_cnt = Counter(1000)
-        diou_cnt = Counter(1000)
+        reward_cnt = Counter(100*self.batch_size)
+        diou_cnt = Counter(100*self.batch_size)
 
         start = time.time()
         for epoch in range(self.max_epoch):
@@ -199,7 +199,7 @@ class Player(object):
 
         start = time.time()
 
-        diou_cnt = Counter(1000)
+        diou_cnt = Counter(100*self.batch_size)
 
         all_old_bboxes = list()
         all_new_bboxes = list()
