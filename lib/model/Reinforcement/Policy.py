@@ -61,7 +61,8 @@ class DQN(object):
         for par in self.eval_net.parameters():
             if par.requires_grad == True:
                 parameter.append(par)
-        self.optimizer = torch.optim.Adam(parameter, lr=self.learning_rate)
+        # self.optimizer = torch.optim.Adam(parameter, lr=self.learning_rate)
+        self.optimizer = torch.optim.SGD(parameter, lr=self.learning_rate, momentum=0.9, weight_decay=0.0001)
 
     def update_target_network(self):
         self.target_net.load_state_dict(self.eval_net.state_dict())

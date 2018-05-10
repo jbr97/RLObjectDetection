@@ -246,9 +246,9 @@ class Player(object):
             # get actions
             # actions = self.policy.get_action(imgs, bboxes).tolist()
 
-            # actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
+            actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
 
-            actions = self._get_best_action(gts, bboxes)
+            #actions = self._get_best_action(gts, bboxes)
 
 
             for action in actions:
@@ -586,10 +586,10 @@ class Player(object):
         a6 = min_iou + (max_iou - min_iou) * 0.6
         a8 = min_iou + (max_iou - min_iou) * 0.8
 
-        print('a2:', a2)
-        print('a4:', a4)
-        print('a6:', a6)
-        print('a8:', a8)
+        #print('a2:', a2)
+        #print('a4:', a4)
+        #print('a6:', a6)
+        #print('a8:', a8)
 
 
         def get_index(a):
@@ -605,10 +605,10 @@ class Player(object):
 
         avg_num = int(fg_num * 0.2)
 
-        print('b2:', b2)
-        print('b4:', b4)
-        print('b6:', b6)
-        print('b8:', b8)
+        #print('b2:', b2)
+        #print('b4:', b4)
+        #print('b6:', b6)
+        #print('b8:', b8)
 
 
         def get_random_ind(b0, b1):
