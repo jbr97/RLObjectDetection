@@ -1,10 +1,11 @@
 import sys
-
 import os
 import time
 import math
 import json
 import pickle
+import collections
+
 import numpy as np
 
 import torch
@@ -191,6 +192,36 @@ class Player(object):
             actions.append(best_act)
         return actions
             
+    def get_info(self, val_data_loader):
+
+        category_cnt = collections.defaultdict(int)
+        for i, inp in enumerate(val_data_loader):
+            bboxes = inp[1]
+            resize_scales = inp[3][:, 2]
+            ids = inp[5]
+
+            
+            for j, bb in enumerate(bboxes):
+                # bbox = (old_bbox[1:5] / resize_scales[j // 100]).tolist()
+                # old_ann = {"image_id": int(ids[int(old_bbox[0])]), "category_id":int(old_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": old_bbox[6]}
+                bbox = (bb[1:5] / resize_scales[j // 100]).tolist()
+                new_ann = {"image_id": int(ids[int(bb[0])]), "category_id":int(bb[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": bb[6]}
+                #print (old_ann)
+                # all_old_bboxes.append(old_ann)
+                category_cnt[new_ann["category_id"]] += 1
+
+        most_category_id = None
+        max_num = 0
+        for k, v in category_cnt.items():
+            print('k: {} \t\tv: {}'.format(k, v))
+
+            if v > max_num:
+                max_num = v
+                most_category_id = k
+        
+        print('most category id:', most_category_id, 'max_num:', max_num)
+
+
 
     def eval(self, val_data_loader):
         tot_g_0 = 0
