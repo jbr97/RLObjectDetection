@@ -46,6 +46,7 @@ class Counter(object):
     def __init__(self, size=1000, bins=4):
         self._size = size
         self.items = deque(list(), self._size)
+        self.bins = bins
 
     def add(self, x) :
         if isinstance(x, list):
@@ -61,9 +62,20 @@ class Counter(object):
         
         sorted_items = sorted(self.items)
         nums = len(self.items)
-        a, b, c, d, e = 0, int(nums/4), int(nums/2), int(nums/4*3), nums-1  
 
-        return sorted_items[a], sorted_items[b], sorted_items[c], sorted_items[d], sorted_items[e]
+        inds = [0] * (self.bins+1)
+        inds[0] = 0
+        inds[-1] = nums - 1
+        for i in range(1, self.bins):
+            inds[i] = int(nums/self.bins*i)
+
+        item_list = [0] * (self.bins+1)
+        for i in range(self.bins+1):
+            item_list[0] = sorted_items[ inds[i] ]
+
+        # a, b, c, d, e = 0, int(nums/4), int(nums/2), int(nums/4*3), nums-1  
+        # return sorted_items[a], sorted_items[b], sorted_items[c], sorted_items[d], sorted_items[e]
+        return item_list
 
 
 def accuracy(output, target, k=1):

@@ -77,7 +77,9 @@ class Player(object):
 
                 for j in range(self.num_rl_steps):
                     # get actions from eval_net
-                    actions = self.policy.get_action(imgs, bboxes).tolist()
+                    # actions = self.policy.get_action(imgs, bboxes).tolist()
+
+                    actions = [-1] * bboxes.shape[0] 
 
                     # replace some action in random policy
                     for idx in range(len(actions)):
@@ -104,7 +106,7 @@ class Player(object):
 
 
                     # sample bboxes for a positive and negitive balance
-                    bboxes, actions, transform_bboxes, delta_iou = self._sample_category1_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法.  加了一个assertion，防止问题。
+                    bboxes, actions, transform_bboxes, delta_iou = self._sample_posiou_bboxes(bboxes, actions, transform_bboxes, delta_iou, old_iou)      # TODO: sample 需要换个写法.  加了一个assertion，防止问题。
                     # logger.info("bbox shape: {}".format(bboxes.shape))
                     # logger.info("action shape: {}".format(len(actions)))
                     # logger.info("transform_bboxes: {}".format(transform_bboxes.shape))
@@ -160,15 +162,14 @@ class Player(object):
 
     def _get_best_action(self, gts, bboxes):
         actions = []
+        # diou_cnt = Counter(56)
 
-
-        diou_cnt = Counter(56)
-
+        num_update = 0
         for i in range(bboxes.shape[0]):
 
             bbox = bboxes[i, :][np.newaxis, :]
             max_diou = 0
-            best_act = 0
+            best_act = self.num_actions
             cnt_eq_iou = 0
 
             if bbox[0, 5] == 1:
@@ -200,7 +201,11 @@ class Player(object):
             else:
                 best_act = self.num_actions
 
+            if max_diou > 0:
+                num_update += 1
             actions.append(best_act)
+
+        print('num update:', num_update)
         return actions
             
     def get_info(self, val_data_loader):
@@ -594,6 +599,23 @@ class Player(object):
         logger.info('num of pos diou:{}  num of neg diou:{}'.format(num_pos_diou, num_neg_diou))
 
         return bboxes[inds, :], np.array(actions)[inds].tolist(), transform_bboxes[inds, :], np.array(delta_iou)[inds].tolist()
+
+    def _sample_posiou_bboxes(self, bboxes, actions, transform_bboxes, delta_iou, old_iou):
+        inds = np.where(np.array(old_iou) > 0.5)[0]
+
+        new_bboxes = bboxes[inds, :]
+        new_actions = np.array(actions)[inds].tolist()
+        new_transform_bboxes = transform_bboxes[inds, :]
+        new_delta_iou = np.array(delta_iou)[inds].tolist()
+
+        num_pos_diou = len([x for x in new_delta_iou if x > 0])
+        num_neg_diou = len([x for x in new_delta_iou if x < 0])
+        num_zero_diou = len([x for x in new_delta_iou if x == 0])
+
+        logger.info('num of diou pos:neg:zero {} : {} : {}'.format(num_pos_diou, num_neg_diou, num_zero_diou))
+
+        return new_bboxes, new_actions, new_transform_bboxes, new_delta_iou
+
 
     def _get_percent_index(self, fg_inds, fg_iou, fg_num):
         """
