@@ -40,6 +40,8 @@ class COCODataset(Dataset):
         self.category_to_class = {c: i for i, c in enumerate(sorted(category_ids))}
         self.class_to_category = {i: c for i, c in enumerate(sorted(category_ids))}
 
+        print('category to class:', self.category_to_class)
+
         self.img_ids = list(set([_['image_id'] for _ in self.coco.anns.values()]))
         self.annIds = self.coco.getAnnIds(imgIds=self.img_ids)
         self.gt_boxes_list = self.coco.loadAnns(self.annIds)

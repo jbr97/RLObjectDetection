@@ -34,14 +34,14 @@ class DQN(object):
         :return: None
         """
         self.eval_net = resnet101().cuda()
-        self.target_net = resnet101().cuda()
+        # self.target_net = resnet101().cuda()
 
         if self.pretrain != "":
             assert os.path.isfile(self.pretrain), '{} is not a valid file'.format(self.pretrain)
             logger.info("load ckpt from {}".format(self.pretrain))
             checkpoint = torch.load(self.pretrain)
             self.eval_net.load_state_dict(checkpoint, strict=False)
-            self.target_net.load_state_dict(checkpoint, strict=False)
+            # self.target_net.load_state_dict(checkpoint, strict=False)
 
         if self.resume != "":
             assert os.path.isfile(self.resume), '{} is not a valid file'.format(self.resume)
@@ -49,10 +49,10 @@ class DQN(object):
             checkpoint = torch.load(self.resume)
             # start_epoch = checkpoint['epoch']
             self.eval_net.load_state_dict(checkpoint['state_dict'], strict=True)
-            self.target_net.load_state_dict(checkpoint['state_dict'], strict=True)
+            # self.target_net.load_state_dict(checkpoint['state_dict'], strict=True)
 
         self.eval_net.freeze_layer()
-        self.target_net.freeze_layer()
+        # self.target_net.freeze_layer()
         # self.loss_func = nn.MSELoss()
         self.loss_func = nn.SmoothL1Loss()
 
@@ -65,7 +65,8 @@ class DQN(object):
         self.optimizer = torch.optim.SGD(parameter, lr=self.learning_rate, momentum=0.9, weight_decay=0.0001)
 
     def update_target_network(self):
-        self.target_net.load_state_dict(self.eval_net.state_dict())
+        # self.target_net.load_state_dict(self.eval_net.state_dict())
+        pass
 
     def get_action(self, imgs, bboxes):
         """

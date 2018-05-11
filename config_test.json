@@ -5,7 +5,7 @@
   "asdf_dt_file": "data/output/detections_minival2014_results.json",
   "data_dir": "data/coco/images/val2014",
   "ann_file": "data/coco/annotations/instances_minival2014.json",
-  "dt_file": "val_data/detections_minival2014_category1_results.json",
+  "dt_file": "data/output/detections_minival2014_results.json",
   "max_epoch": 10,
   "target_network_update_freq": 500,
   "print_freq": 1,

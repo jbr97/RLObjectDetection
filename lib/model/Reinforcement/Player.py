@@ -63,8 +63,8 @@ class Player(object):
         for epoch in range(self.max_epoch):
             for i, inp in enumerate(train_dataloader):                                  #　TODO： 是否shuffle？ YES
                 # suppose we have img, bboxes, gts
-                # bboxes:[batch_id, x1, y1, x2, y2, category, score]
-                # gts: [batch_id, x1, y1, x2, y2, category, iscrowd]
+                # bboxes:[batch_id, x1, y1, x2, y2, category, score, cls_id, scale]
+                # gts: [batch_id, x1, y1, x2, y2, category, iscrowd, cls_id]
                 data_time.add(time.time() - start)
                 imgs = inp[0]
                 bboxes = inp[1]
@@ -104,7 +104,7 @@ class Player(object):
 
 
                     # sample bboxes for a positive and negitive balance
-                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法.  加了一个assertion，防止问题。
+                    bboxes, actions, transform_bboxes, delta_iou = self._sample_category1_bboxes(bboxes, actions, transform_bboxes, delta_iou)      # TODO: sample 需要换个写法.  加了一个assertion，防止问题。
                     # logger.info("bbox shape: {}".format(bboxes.shape))
                     # logger.info("action shape: {}".format(len(actions)))
                     # logger.info("transform_bboxes: {}".format(transform_bboxes.shape))
@@ -171,31 +171,35 @@ class Player(object):
             best_act = 0
             cnt_eq_iou = 0
 
-            for act in range(self.num_actions+1):
+            if bbox[0, 5] == 1:
+                for act in range(self.num_actions+1):
 
-                t_bbox = self._transform(bbox, [act])
+                    t_bbox = self._transform(bbox, [act])
 
-                iou1 = self._computeIoU(gts, bbox)
-                iou2 = self._computeIoU(gts, t_bbox)
-
-
-                assert len(iou1) == 1 and len(iou2) == 1, 'Unmatched numbers of computeIoU.'
-
-                iou1 = iou1[0]
-                iou2 = iou2[0]
-
-                diou_cnt.add(iou2- iou1)
-
-                if iou1 == iou2:
-                    cnt_eq_iou += 1
+                    iou1 = self._computeIoU(gts, bbox)
+                    iou2 = self._computeIoU(gts, t_bbox)
 
 
-                if max_diou < iou2 - iou1:
-                    max_diou = iou2 - iou1
-                    best_act = act
+                    assert len(iou1) == 1 and len(iou2) == 1, 'Unmatched numbers of computeIoU.'
 
-            
-            print('num of uneffected actions:', cnt_eq_iou)
+                    iou1 = iou1[0]
+                    iou2 = iou2[0]
+
+                    diou_cnt.add(iou2- iou1)
+
+                    if iou1 == iou2:
+                        cnt_eq_iou += 1
+
+
+                    if max_diou < iou2 - iou1:
+                        max_diou = iou2 - iou1
+                        best_act = act
+
+                
+                # print('num of uneffected actions:', cnt_eq_iou)
+            else:
+                best_act = self.num_actions
+
             actions.append(best_act)
         return actions
             
@@ -287,8 +291,8 @@ class Player(object):
 
 
             d1, d2, d3, d4, d5 = diou_cnt.get_statinfo()    
-            logger.info("diou dist: {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}\t\t Acc(>0): {} Acc(>=0): {}"
-                        .format(d1, d2, d3, d4, d5, g_0 / len(delta_iou), ge_0 / len(delta_iou)))
+            logger.info("diou num: {} diou dist: {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}\t\t Acc(>0): {} Acc(>=0): {}"
+                        .format(len(delta_iou), d1, d2, d3, d4, d5, g_0 / len(delta_iou), ge_0 / len(delta_iou)))
             tot_g_0 += g_0
             tot_ge_0 += ge_0
             tot += len(delta_iou)
@@ -580,6 +584,16 @@ class Player(object):
 
         #print('max iou:', max(np.array(delta_iou)[inds])) 
         return bboxes[inds, :], np.array(actions)[inds].tolist(), tranform_bboxes[inds, :], np.array(delta_iou)[inds].tolist()
+
+    def _sample_category1_bboxes(self, bboxes, actions, transform_bboxes, delta_iou):
+        inds = np.where(bboxes[:, 5] == 1)[0]
+
+        num_pos_diou = len([x for x in delta_iou if x > 0])
+        num_neg_diou = len([x for x in delta_iou if x < 0])
+
+        logger.info('num of pos diou:{}  num of neg diou:{}'.format(num_pos_diou, num_neg_diou))
+
+        return bboxes[inds, :], np.array(actions)[inds].tolist(), transform_bboxes[inds, :], np.array(delta_iou)[inds].tolist()
 
     def _get_percent_index(self, fg_inds, fg_iou, fg_num):
         """
