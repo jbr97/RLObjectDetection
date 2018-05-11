@@ -164,7 +164,10 @@ class Player(object):
         actions = []
         # diou_cnt = Counter(56)
 
+        
+        selected = 2
         num_update = 0
+        num_selected_bbox = 0
         for i in range(bboxes.shape[0]):
 
             bbox = bboxes[i, :][np.newaxis, :]
@@ -172,7 +175,10 @@ class Player(object):
             best_act = self.num_actions
             cnt_eq_iou = 0
 
-            if bbox[0, 5] == 1:
+            if bbox[0, 7] == selected:
+                num_selected_bbox += 1
+
+
                 for act in range(self.num_actions+1):
 
                     t_bbox = self._transform(bbox, [act])
@@ -186,7 +192,7 @@ class Player(object):
                     iou1 = iou1[0]
                     iou2 = iou2[0]
 
-                    diou_cnt.add(iou2- iou1)
+                    # diou_cnt.add(iou2- iou1)
 
                     if iou1 == iou2:
                         cnt_eq_iou += 1
@@ -205,7 +211,8 @@ class Player(object):
                 num_update += 1
             actions.append(best_act)
 
-        print('num update:', num_update)
+        
+        print('update:selected: {}:{} = {}'.format(num_update, num_selected_bbox, num_update/(num_selected_bbox+0.1)))
         return actions
             
     def get_info(self, val_data_loader):
