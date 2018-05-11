@@ -43,12 +43,13 @@ class COCODataset(Dataset):
         self.img_ids = list(set([_['image_id'] for _ in self.coco.anns.values()]))
         self.annIds = self.coco.getAnnIds(imgIds=self.img_ids)
         self.gt_boxes_list = self.coco.loadAnns(self.annIds)
+        
         self.gt_boxes = defaultdict(list)
         for gt in self.gt_boxes_list:
             self.gt_boxes[gt['image_id']].append(gt)
 
         ## loading initial detection boxes from json file
-        self.dt_boxes_list = json.load(open(dt_file, 'r'))
+        self.dt_boxes_list = json.load(open(dt_file, 'r'))        
         self.dt_boxes = defaultdict(list)
         for dt in self.dt_boxes_list:
             self.dt_boxes[dt['image_id']].append(dt)
@@ -156,7 +157,11 @@ class COCOTransform(object):
         if bboxes.shape[0] > 0:
             bboxes[:, :4] *= scale
 
+            v_scale = np.ones((bboxes.shape[0], 1)) * scale
+            newbboxes = np.concatenate((bboxes, v_scale), axis=1)
+
         if gts.shape[0] > 0:
             gts[:, :4] *= scale
 
-        return scale, img, bboxes, gts
+            
+        return scale, img, newbboxes, gts

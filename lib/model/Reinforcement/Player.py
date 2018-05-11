@@ -194,7 +194,7 @@ class Player(object):
                     max_diou = iou2 - iou1
                     best_act = act
 
-            a1 diou_cnt.get_statinfo
+            
             print('num of uneffected actions:', cnt_eq_iou)
             actions.append(best_act)
         return actions
@@ -296,7 +296,9 @@ class Player(object):
             for j, (old_bbox, new_bbox) in enumerate(zip(bboxes, transform_bboxes)):
                 # bbox = (old_bbox[1:5] / resize_scales[j // 100]).tolist()
                 # old_ann = {"image_id": int(ids[int(old_bbox[0])]), "category_id":int(old_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": old_bbox[6]}
-                bbox = (new_bbox[1:5] / resize_scales[j // 100]).tolist()
+                # bbox = (new_bbox[1:5] / resize_scales[j // 100]).tolist()
+                bbox = (new_bbox[1:5] / new_bbox[8]).tolist()
+                
                 new_ann = {"image_id": int(ids[int(new_bbox[0])]), "category_id":int(new_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": new_bbox[6]}
                 #print (old_ann)
                 # all_old_bboxes.append(old_ann)
@@ -381,7 +383,7 @@ class Player(object):
                 elif action == 16: w += w * 0.5**3
                 elif action == 17: w += w * 0.5**4
                 elif action == 18: w += w * 0.5**5
-                elif action == 29: w += w * 0.5**6
+                elif action == 19: w += w * 0.5**6
                 elif action == 20: w += w * 0.5**7
                 # 22-28: [x,y,w,h] -> [x, y, w, h+0.5h]
                 elif action == 21: h += h * 0.5**1
