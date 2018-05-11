@@ -43,7 +43,7 @@ class AveMeter():
 
 
 class Counter(object):
-    def __init__(self, size=1000):
+    def __init__(self, size=1000, bins=4):
         self._size = size
         self.items = deque(list(), self._size)
 

@@ -82,7 +82,7 @@ class Player(object):
                     # replace some action in random policy
                     for idx in range(len(actions)):
                         # if np.random.uniform() > max(self.epsilon, 0.05):
-                        actions[idx] = np.random.randint(0, self.num_actions)
+                        actions[idx] = np.random.randint(0, self.num_actions+1)
                     self.epsilon = iters / self.eps_iter
                     # logger.info(len(actions))
 
@@ -161,6 +161,9 @@ class Player(object):
     def _get_best_action(self, gts, bboxes):
         actions = []
 
+
+        diou_cnt = Counter(56)
+
         for i in range(bboxes.shape[0]):
 
             bbox = bboxes[i, :][np.newaxis, :]
@@ -168,7 +171,7 @@ class Player(object):
             best_act = 0
             cnt_eq_iou = 0
 
-            for act in range(self.num_actions):
+            for act in range(self.num_actions+1):
 
                 t_bbox = self._transform(bbox, [act])
 
@@ -181,13 +184,17 @@ class Player(object):
                 iou1 = iou1[0]
                 iou2 = iou2[0]
 
+                diou_cnt.add(iou2- iou1)
+
                 if iou1 == iou2:
                     cnt_eq_iou += 1
+
 
                 if max_diou < iou2 - iou1:
                     max_diou = iou2 - iou1
                     best_act = act
 
+            a1 diou_cnt.get_statinfo
             print('num of uneffected actions:', cnt_eq_iou)
             actions.append(best_act)
         return actions
@@ -195,6 +202,7 @@ class Player(object):
     def get_info(self, val_data_loader):
 
         category_cnt = collections.defaultdict(int)
+        all_boxes = list()
         for i, inp in enumerate(val_data_loader):
             bboxes = inp[1]
             resize_scales = inp[3][:, 2]
@@ -246,7 +254,9 @@ class Player(object):
             # get actions
             # actions = self.policy.get_action(imgs, bboxes).tolist()
 
-            actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
+            # actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
+
+            actions = [self.num_actions] * bboxes.shape[0]
 
             #actions = self._get_best_action(gts, bboxes)
 
@@ -342,7 +352,7 @@ class Player(object):
 
         transform_bboxes = bboxes.copy()
         for i, action in enumerate(actions):
-            if action == 0:
+            if action == 56:
                 continue
             else:
                 x, y, x2, y2= transform_bboxes[i, 1:5]
@@ -350,69 +360,69 @@ class Player(object):
                 h = y2 - y
                 
                 # 1-7: [x,y,w,h] -> [x+0.5w, y, w, h]
-                if action == 1:   x += w * 0.5**1
-                elif action == 2: x += w * 0.5**2
-                elif action == 3: x += w * 0.5**3
-                elif action == 4: x += w * 0.5**4
-                elif action == 5: x += w * 0.5**5
-                elif action == 6: x += w * 0.5**6
-                elif action == 7: x += w * 0.5**7
+                if action == 0:   x += w * 0.5**1
+                elif action == 1: x += w * 0.5**2
+                elif action == 2: x += w * 0.5**3
+                elif action == 3: x += w * 0.5**4
+                elif action == 4: x += w * 0.5**5
+                elif action == 5: x += w * 0.5**6
+                elif action == 6: x += w * 0.5**7
                 # 8-14: [x,y,w,h] -> [x, y+0.5h, w, h]
-                elif action == 8:  y += h * 0.5**1
-                elif action == 9:  y += h * 0.5**2
-                elif action == 10: y += h * 0.5**3
-                elif action == 11: y += h * 0.5**4
-                elif action == 12: y += h * 0.5**5
-                elif action == 13: y += h * 0.5**6
-                elif action == 14: y += h * 0.5**7
+                elif action == 7:  y += h * 0.5**1
+                elif action == 8:  y += h * 0.5**2
+                elif action == 9: y += h * 0.5**3
+                elif action == 10: y += h * 0.5**4
+                elif action == 11: y += h * 0.5**5
+                elif action == 12: y += h * 0.5**6
+                elif action == 13: y += h * 0.5**7
                 # 15-21: [x,y,w,h] -> [x, y, w+0.5w, h]
-                elif action == 15: w += w * 0.5**1
-                elif action == 16: w += w * 0.5**2
-                elif action == 17: w += w * 0.5**3
-                elif action == 18: w += w * 0.5**4
-                elif action == 19: w += w * 0.5**5
-                elif action == 20: w += w * 0.5**6
-                elif action == 21: w += w * 0.5**7
+                elif action == 14: w += w * 0.5**1
+                elif action == 15: w += w * 0.5**2
+                elif action == 16: w += w * 0.5**3
+                elif action == 17: w += w * 0.5**4
+                elif action == 18: w += w * 0.5**5
+                elif action == 29: w += w * 0.5**6
+                elif action == 20: w += w * 0.5**7
                 # 22-28: [x,y,w,h] -> [x, y, w, h+0.5h]
-                elif action == 22: h += h * 0.5**1
-                elif action == 23: h += h * 0.5**2
-                elif action == 24: h += h * 0.5**3
-                elif action == 25: h += h * 0.5**4
-                elif action == 26: h += h * 0.5**5
-                elif action == 27: h += h * 0.5**6
-                elif action == 28: h += h * 0.5**7
+                elif action == 21: h += h * 0.5**1
+                elif action == 22: h += h * 0.5**2
+                elif action == 23: h += h * 0.5**3
+                elif action == 24: h += h * 0.5**4
+                elif action == 25: h += h * 0.5**5
+                elif action == 26: h += h * 0.5**6
+                elif action == 27: h += h * 0.5**7
                 # 29-35: [x,y,w,h] -> [x-0.5w, y, w, h]
-                elif action == 29: x -= w * 0.5**1
-                elif action == 30: x -= w * 0.5**2
-                elif action == 31: x -= w * 0.5**3
-                elif action == 32: x -= w * 0.5**4
-                elif action == 33: x -= w * 0.5**5
-                elif action == 34: x -= w * 0.5**6
-                elif action == 35: x -= w * 0.5**7
+                elif action == 28: x -= w * 0.5**1
+                elif action == 29: x -= w * 0.5**2
+                elif action == 30: x -= w * 0.5**3
+                elif action == 31: x -= w * 0.5**4
+                elif action == 32: x -= w * 0.5**5
+                elif action == 33: x -= w * 0.5**6
+                elif action == 34: x -= w * 0.5**7
                 # 36-42: [x,y,w,h] -> [x, y-0.5h, w, h]
-                elif action == 36: y -= h * 0.5**1
-                elif action == 37: y -= h * 0.5**2
-                elif action == 38: y -= h * 0.5**3
-                elif action == 39: y -= h * 0.5**4
-                elif action == 40: y -= h * 0.5**5
-                elif action == 41: y -= h * 0.5**6
-                elif action == 42: y -= h * 0.5**7
+                elif action == 35: y -= h * 0.5**1
+                elif action == 36: y -= h * 0.5**2
+                elif action == 37: y -= h * 0.5**3
+                elif action == 38: y -= h * 0.5**4
+                elif action == 39: y -= h * 0.5**5
+                elif action == 40: y -= h * 0.5**6
+                elif action == 41: y -= h * 0.5**7
                 # 43-49: [x,y,w,h] -> [x, y, w-0.5w, h]
-                elif action == 43: w -= w * 0.5**1
-                elif action == 44: w -= w * 0.5**2
-                elif action == 45: w -= w * 0.5**3
-                elif action == 46: w -= w * 0.5**4
-                elif action == 47: w -= w * 0.5**5
-                elif action == 48: w -= w * 0.5**6
-                elif action == 49: w -= w * 0.5**7
+                elif action == 42: w -= w * 0.5**1
+                elif action == 43: w -= w * 0.5**2
+                elif action == 44: w -= w * 0.5**3
+                elif action == 45: w -= w * 0.5**4
+                elif action == 46: w -= w * 0.5**5
+                elif action == 47: w -= w * 0.5**6
+                elif action == 48: w -= w * 0.5**7
                 # 22,23,24: [x,y,w,h] -> [x, y, w, h-0.5h]
-                elif action == 50: h -= h * 0.5**1
-                elif action == 51: h -= h * 0.5**2
-                elif action == 52: h -= h * 0.5**3
-                elif action == 53: h -= h * 0.5**4
-                elif action == 54: h -= h * 0.5**5
-                elif action == 55: h -= h * 0.5**6
-                elif action == 56: h -= h * 0.5**7
+                elif action == 49: h -= h * 0.5**1
+                elif action == 50: h -= h * 0.5**2
+                elif action == 51: h -= h * 0.5**3
+                elif action == 52: h -= h * 0.5**4
+                elif action == 53: h -= h * 0.5**5
+                elif action == 54: h -= h * 0.5**6
+                elif action == 55: h -= h * 0.5**7
                 else:
                     raise RuntimeError('Unrecognized action.')
 

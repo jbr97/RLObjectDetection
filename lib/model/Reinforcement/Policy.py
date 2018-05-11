@@ -83,7 +83,7 @@ class DQN(object):
         values = self.eval_net(img, bboxes)
 
         values = values.view(batch_size, self.class_num, self.action_num)
-        values = values[range(batch_size), classes, 1:self.action_num].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
+        values = values[range(batch_size), classes, :].view(batch_size, self.action_num)    # TODO: 检查index是否选取正常   DONE
         logger.info("the shape of values is {}".format(values.shape))
         
         max_vals = torch.max(values, 1)[0].cpu().data.numpy()
@@ -91,9 +91,9 @@ class DQN(object):
         action = []
         for max_val, max_ind in zip(max_vals, max_inds):
             if max_val < self.reward_threshold:
-                action.append(0)
+                action.append(self.action_num)
             else:
-                action.append(max_ind+1)
+                action.append(max_ind)
         action = np.array(action)
         # action = torch.max(values, 1)[1].cpu().data.numpy()
         # logger.info(action)
@@ -115,7 +115,7 @@ class DQN(object):
         values = self.eval_net(img, bboxes)
 
         values = values.view(batch_size, self.class_num, self.action_num)
-        values = values[range(batch_size), classes, 1:self.action_num].view(batch_size, self.action_num-1)    # TODO: 检查index是否选取正常   DONE
+        values = values[range(batch_size), classes, :].view(batch_size, self.action_num)    # TODO: 检查index是否选取正常   DONE
         logger.info("the shape of values is {}".format(values.shape))
         
         max_vals = torch.max(values, 1)[0].cpu().data.numpy()
@@ -129,9 +129,9 @@ class DQN(object):
 
         for max_val, max_ind in zip(max_vals, max_inds):
             if max_val < reward_threshold:
-                action.append(0)
+                action.append(self.action_num)
             else:
-                action.append(max_ind+1)
+                action.append(max_ind)
         action = np.array(action)
 
         print('threshold_ind:{},  reward_t:{},  min_reward:{}'.format(threshold_ind, 
