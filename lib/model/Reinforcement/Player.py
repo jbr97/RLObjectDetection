@@ -239,16 +239,16 @@ class Player(object):
             # diou分类统计
             tmp = np.array(old_iou)
             num_diou0 = len(np.where(tmp == 0)[0])
-            num_diou1 = len(np.where(tmp > 0.0 and tmp <= 0.1)[0])
-            num_diou2 = len(np.where(tmp > 0.1 and tmp <= 0.2)[0])
-            num_diou3 = len(np.where(tmp > 0.2 and tmp <= 0.3)[0])
-            num_diou4 = len(np.where(tmp > 0.3 and tmp <= 0.4)[0])
-            num_diou5 = len(np.where(tmp > 0.4 and tmp <= 0.5)[0])
-            num_diou6 = len(np.where(tmp > 0.5 and tmp <= 0.6)[0])
-            num_diou7 = len(np.where(tmp > 0.6 and tmp <= 0.7)[0])
-            num_diou8 = len(np.where(tmp > 0.7 and tmp <= 0.8)[0])
-            num_diou9 = len(np.where(tmp > 0.8 and tmp <= 0.9)[0])
-            num_diou10 =len(np.where(tmp > 0.9 and tmp <= 1.0)[0])
+            num_diou1 = len(np.where((tmp > 0.0) & (tmp <= 0.1))[0])
+            num_diou2 = len(np.where((tmp > 0.1) & (tmp <= 0.2))[0])
+            num_diou3 = len(np.where((tmp > 0.2) & (tmp <= 0.3))[0])
+            num_diou4 = len(np.where((tmp > 0.3) & (tmp <= 0.4))[0])
+            num_diou5 = len(np.where((tmp > 0.4) & (tmp <= 0.5))[0])
+            num_diou6 = len(np.where((tmp > 0.5) & (tmp <= 0.6))[0])
+            num_diou7 = len(np.where((tmp > 0.6) & (tmp <= 0.7))[0])
+            num_diou8 = len(np.where((tmp > 0.7) & (tmp <= 0.8))[0])
+            num_diou9 = len(np.where((tmp > 0.8) & (tmp <= 0.9))[0])
+            num_diou10 =len(np.where((tmp > 0.9) & (tmp <= 1.0))[0])
 
             num_t = len(np.where(tmp > 0.5)[0])
 
@@ -395,7 +395,7 @@ class Player(object):
             """        
         logger.info("Acc(>0): {0} Acc(>=0): {1}"
                     .format(tot_g_0 / tot, tot_ge_0 / tot))
-                    
+
         print('total accuracy:', total_accuracy)
         
         for idx, action_num in enumerate(action_nums):
