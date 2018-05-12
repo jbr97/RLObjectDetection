@@ -70,27 +70,31 @@ class Player(object):
                 bboxes = inp[1]
                 gts = inp[2]
 
-                print('image shape:', imgs.shape)
-                print('bboxes shape:', bboxes.shape)
-                print('gts shape:', gts.shape)
+                # print('image shape:', imgs.shape)
+                # print('bboxes shape:', bboxes.shape)
+                # print('gts shape:', gts.shape)
                 # raise RuntimeError
 
                 for j in range(self.num_rl_steps):
                     # get actions from eval_net
                     # actions = self.policy.get_action(imgs, bboxes).tolist()
 
-                    actions = [-1] * bboxes.shape[0] 
+                    # 固定action=5
+                    actions = [5] * bboxes.shape[0] 
 
                     # replace some action in random policy
-                    for idx in range(len(actions)):
+                    # for idx in range(len(actions)):
                         # if np.random.uniform() > max(self.epsilon, 0.05):
-                        actions[idx] = np.random.randint(0, self.num_actions+1)
+                        # actions[idx] = np.random.randint(0, self.num_actions+1)
+
+                        
                     self.epsilon = iters / self.eps_iter
                     # logger.info(len(actions))
 
                     # compute iou for epoch bbox before and afer action
                     # we can get delta_iou
                     # bboxes, actions, transform_bboxes, delta_iou
+
                     transform_bboxes = self._transform(bboxes, actions)                     # TODO: transform换个写法.       DONE
                     old_iou = self._computeIoU(gts, bboxes)                                # TODO: iou 需要考虑到category.   DONE
                     # logger.info(len(old_iou))
@@ -130,13 +134,18 @@ class Player(object):
                     losses.add(np.mean(loss))
                     batch_time.add(time.time() - start)
                     if iters % self.print_freq == 0:
+                        # logger.info('Train: [{0}][{1}/{2}]\t'
+                        #             'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                        #             'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                        #             'Loss {losses.val:.4f} ({losses.avg:.4f})\t'.format(
+                        #             epoch + 1, i, len(train_dataloader),
+                        #             batch_time=batch_time,
+                        #             data_time=data_time,
+                        #             losses=losses)
+
                         logger.info('Train: [{0}][{1}/{2}]\t'
-                                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                                    'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                                     'Loss {losses.val:.4f} ({losses.avg:.4f})\t'.format(
-                                    epoch + 1, i, len(train_dataloader),
-                                    batch_time=batch_time,
-                                    data_time=data_time,
+                                    epoch + 1, i+1, len(train_dataloader),
                                     losses=losses)
                         )
                         a1, a2, a3, a4, a5 = reward_cnt.get_statinfo()

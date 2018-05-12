@@ -71,7 +71,7 @@ class Counter(object):
 
         item_list = [0] * (self.bins+1)
         for i in range(self.bins+1):
-            item_list[0] = sorted_items[ inds[i] ]
+            item_list[i] = sorted_items[ inds[i] ]
 
         # a, b, c, d, e = 0, int(nums/4), int(nums/2), int(nums/4*3), nums-1  
         # return sorted_items[a], sorted_items[b], sorted_items[c], sorted_items[d], sorted_items[e]
