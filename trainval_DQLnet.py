@@ -52,7 +52,8 @@ def main():
         player.train(dataloader)
     elif cfg["mode"] == 'val':
         logger.info("-----------Start validate---------")
-        player.eval(dataloader)
+        # player.eval(dataloader)
+        player.get_info(dataloader)
 
 if __name__ == "__main__":
     main()
