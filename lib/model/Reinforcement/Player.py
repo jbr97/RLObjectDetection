@@ -311,7 +311,7 @@ class Player(object):
             # get actions
             # actions = self.policy.get_action(imgs, bboxes).tolist()
 
-            q_value = self.policy.get_selected_action(imgs, bboxes, selected_action=selected_act)
+            q_value = self.policy.get_q_value(imgs, bboxes, selected_action=selected_act)
             
             # percentage = 0.03
             # threshold_ind = int(len(q_value)*(1-percentage))
@@ -326,8 +326,6 @@ class Player(object):
                     actions.append(selected_act)
             actions = np.array(actions)
 
-
-            dt_pos_neg = q_value > 0
 
             # print('threshold_ind:{},  reward_t:{},  min_reward:{}'.format(threshold_ind, 
             #                                                             reward_threshold, np.sort(q_value)[0]))
@@ -351,9 +349,20 @@ class Player(object):
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
+            def compute_accuracy(old_iou, diou, q_value):
+                selected_inds = np.where(np.array(old_iou) > 0.5)[0]
 
-            gt_pos_neg = np.array(delta_iou) > 0
-            accuracy = sum(~(dt_pos_neg^gt_pos_neg)) / len(gt_pos_neg)
+                q1 = q_value[selected_inds]
+                q2 = np.array(diou)[selected_inds]
+
+                dt_pos_neg = q1 > 0
+                gt_pos_neg = q2 > 0
+
+                acc = sum(~(dt_pos_neg^gt_pos_neg)) / len(gt_pos_neg)
+                return acc
+
+
+            accuracy = compute_accuracy(old_iou, delta_iou, q_value)
             print('accuracy:', accuracy)
             total_accuracy = (total_accuracy * i + accuracy) / (i+1)
 
