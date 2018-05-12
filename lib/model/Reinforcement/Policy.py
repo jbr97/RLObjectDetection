@@ -143,6 +143,46 @@ class DQN(object):
         # action = action[0]
         return action        
 
+    def get_selected_action(self, imgs, bboxes, percentage=0.03, selected_action=5):
+        """
+        Top percentage rewards corresponds to the argmax action.
+        Other rewards corresponds to not-moved action.
+        """
+        batch_size = bboxes.shape[0]
+
+        img = Variable(imgs).cuda()
+        classes = Variable(torch.LongTensor(bboxes[:, 7])).contiguous().cuda()             # TODO: Batch_ID在计算什么的时候会用到   roi_align时会用到. DONE
+        bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
+        
+
+        values = self.eval_net(img, bboxes)
+
+        values = values.view(batch_size, self.class_num, self.action_num)
+        values = values[range(batch_size), classes, :].view(batch_size, self.action_num)    # TODO: 检查index是否选取正常   DONE
+        logger.info("the shape of values is {}".format(values.shape))
+
+        q_value = values[range(batch_size), classes, selected_action].cpu().data.numpy()
+        print('q_value shape:', q_value.shape)
+
+        # threshold_ind = int(len(q_value)*(1-percentage))
+        # reward_threshold = np.sort(q_value)[threshold_ind]
+
+        action = []
+        for max_val, max_ind in zip(max_vals, max_inds):
+        for q in q_value:
+            if q <= 0:
+                action.append(self.action_num)
+            else:
+                action.append(selected_action)
+        action = np.array(action)
+
+        print('threshold_ind:{},  reward_t:{},  min_reward:{}'.format(threshold_ind, 
+                                                                      reward_threshold, np.sort(max_vals)[0]))
+        
+        # action = torch.max(values, 1)[1].cpu().data.numpy()
+        # logger.info(action)
+        # action = action[0]
+        return action        
 
     def learn(self, imgs, bboxes, actions, transform_bboxes, rewards, not_end):
         self.iters += 1

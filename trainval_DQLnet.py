@@ -25,6 +25,11 @@ def main():
     init_log('global', logging.INFO)
     logger = logging.getLogger('global')
 
+    # parser = argparse.ArgumentParser('Q Object Dectection')
+    # parser.add_argument('--config_name', default='config.json', type=str)
+    # parser.add_argument('--selected_action', default=5, type=int)
+    # tt = parser.parse_args()
+
     #args = parse_args()
     json_file = sys.argv[1]
     logger.info(json_file)

@@ -295,6 +295,8 @@ class Player(object):
         all_new_bboxes = list()
         action_nums = [0] * 57
         iou_nums = [0] * 6
+
+
         for i, inp in enumerate(val_data_loader):
             imgs = inp[0]
             bboxes = inp[1]
@@ -305,12 +307,13 @@ class Player(object):
             # get actions
             # actions = self.policy.get_action(imgs, bboxes).tolist()
 
+            actions = self.policy.get_selected_action(imgs, bboxes, percentage=0.03, selected_action=5)
+
             # actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
 
-            actions = [self.num_actions] * bboxes.shape[0]
+            # actions = [self.num_actions] * bboxes.shape[0]
 
             # actions = self._get_best_action(gts, bboxes)
-
 
             for action in actions:
                 action_nums[action] += 1
