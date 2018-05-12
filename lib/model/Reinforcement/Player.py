@@ -228,32 +228,73 @@ class Player(object):
 
         category_cnt = collections.defaultdict(int)
         all_boxes = list()
+
+        total_num_dious = collections.defaultdict(int)
         for i, inp in enumerate(val_data_loader):
             bboxes = inp[1]
-            resize_scales = inp[3][:, 2]
-            ids = inp[5]
+            gts = inp[2]
+
+            old_iou = self._computeIoU(gts, bboxes)
+
+            inds_iou = np.where(np.array(old_iou) > 0.5)[0]
+
+            # diou分类统计
+            tmp = np.array(old_iou)
+            num_diou1 = len(np.where(tmp > 0.5 and tmp <= 0.55)[0])
+            num_diou2 = len(np.where(tmp > 0.55 and tmp <= 0.6)[0])
+            num_diou3 = len(np.where(tmp > 0.6 and tmp <= 0.65)[0])
+            num_diou4 = len(np.where(tmp > 0.65 and tmp <= 0.7)[0])
+            num_diou5 = len(np.where(tmp > 0.7 and tmp <= 0.75)[0])
+            num_diou6 = len(np.where(tmp > 0.75 and tmp <= 0.8)[0])
+            num_diou7 = len(np.where(tmp > 0.8 and tmp <= 0.85)[0])
+            num_diou8 = len(np.where(tmp > 0.85 and tmp <= 0.9)[0])
+            num_diou9 = len(np.where(tmp > 0.9 and tmp <= 0.95)[0])
+            num_diou10 = len(np.where(tmp > 0.95 and tmp <= 1.0)[0])
+
+            num_t = len(np.where(tmp > 0.5)[0])
+
+            print('num of dious({}): {} : {} : {} : {} : {} : {} : {} : {} : {} : {}'.format(
+                num_t,
+                num_diou1, num_diou2, num_diou3, num_diou4, num_diou5,
+                num_diou6, num_diou7, num_diou8, num_diou9, num_diou10, 
+            ))
+
+            total_num_dious[1] += num_diou1
+            total_num_dious[2] += num_diou2
+            total_num_dious[3] += num_diou3
+            total_num_dious[4] += num_diou4
+            total_num_dious[5] += num_diou5
+            total_num_dious[6] += num_diou6
+            total_num_dious[7] += num_diou7
+            total_num_dious[8] += num_diou8
+            total_num_dious[9] += num_diou9
+            total_num_dious[10] += num_diou10
 
             
-            for j, bb in enumerate(bboxes):
-                # bbox = (old_bbox[1:5] / resize_scales[j // 100]).tolist()
-                # old_ann = {"image_id": int(ids[int(old_bbox[0])]), "category_id":int(old_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": old_bbox[6]}
-                bbox = (bb[1:5] / resize_scales[j // 100]).tolist()
-                new_ann = {"image_id": int(ids[int(bb[0])]), "category_id":int(bb[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": bb[6]}
-                #print (old_ann)
-                # all_old_bboxes.append(old_ann)
-                category_cnt[new_ann["category_id"]] += 1
+            # for j, bb in enumerate(bboxes):
+            #     # bbox = (old_bbox[1:5] / resize_scales[j // 100]).tolist()
+            #     # old_ann = {"image_id": int(ids[int(old_bbox[0])]), "category_id":int(old_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": old_bbox[6]}
+                
+            #     new_ann = {"image_id": int(ids[int(bb[0])]), "category_id":int(bb[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": bb[6]}
+            #     #print (old_ann)
+            #     # all_old_bboxes.append(old_ann)
+            #     category_cnt[new_ann["category_id"]] += 1
 
-        most_category_id = None
-        max_num = 0
-        for k, v in category_cnt.items():
-            print('k: {} \t\tv: {}'.format(k, v))
+        # most_category_id = None
+        # max_num = 0
+        # for k, v in category_cnt.items():
+        #     print('k: {} \t\tv: {}'.format(k, v))
 
-            if v > max_num:
-                max_num = v
-                most_category_id = k
+        #     if v > max_num:
+        #         max_num = v
+        #         most_category_id = k
         
-        print('most category id:', most_category_id, 'max_num:', max_num)
+        # print('most category id:', most_category_id, 'max_num:', max_num)
 
+        print('total num of dious: {} : {} : {} : {} : {} : {} : {} : {} : {} : {}'.format(
+                total_num_dious[1], total_num_dious[2], total_num_dious[3], total_num_dious[4], total_num_dious[5],
+                total_num_dious[6], total_num_dious[7], total_num_dious[8], total_num_dious[9], total_num_dious[10], 
+            ))
 
 
     def eval(self, val_data_loader):
@@ -283,7 +324,7 @@ class Player(object):
 
             actions = [self.num_actions] * bboxes.shape[0]
 
-            #actions = self._get_best_action(gts, bboxes)
+            # actions = self._get_best_action(gts, bboxes)
 
 
             for action in actions:
