@@ -168,7 +168,7 @@ class DQN(object):
         # reward_threshold = np.sort(q_value)[threshold_ind]
 
         action = []
-        for max_val, max_ind in zip(max_vals, max_inds):
+        
         for q in q_value:
             if q <= 0:
                 action.append(self.action_num)
