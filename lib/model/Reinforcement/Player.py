@@ -297,6 +297,10 @@ class Player(object):
         iou_nums = [0] * 6
 
 
+        selected_act = 5
+
+        total_accuracy = 0
+
         for i, inp in enumerate(val_data_loader):
             imgs = inp[0]
             bboxes = inp[1]
@@ -307,7 +311,27 @@ class Player(object):
             # get actions
             # actions = self.policy.get_action(imgs, bboxes).tolist()
 
-            actions = self.policy.get_selected_action(imgs, bboxes, percentage=0.03, selected_action=5)
+            q_value = self.policy.get_selected_action(imgs, bboxes, selected_action=selected_act)
+            
+            # percentage = 0.03
+            # threshold_ind = int(len(q_value)*(1-percentage))
+            # reward_threshold = np.sort(q_value)[threshold_ind]
+
+            actions = []
+            
+            for q in q_value:
+                if q <= 0:
+                    actions.append(self.num_actions)
+                else:
+                    actions.append(selected_act)
+            actions = np.array(actions)
+
+
+            dt_pos_neg = q_value > 0
+
+            # print('threshold_ind:{},  reward_t:{},  min_reward:{}'.format(threshold_ind, 
+            #                                                             reward_threshold, np.sort(q_value)[0]))
+
 
             # actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
 
@@ -326,6 +350,13 @@ class Player(object):
 
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
+
+
+            gt_pos_neg = np.array(delta_iou) > 0
+            accuracy = sum(~(dt_pos_neg^gt_pos_neg)) / len(gt_pos_neg)
+            print('accuracy:', accuracy)
+            total_accuracy = (total_accuracy * i + accuracy) / (i+1)
+
 
             diou_cnt.add(delta_iou)
 
@@ -364,6 +395,8 @@ class Player(object):
             """        
         logger.info("Acc(>0): {0} Acc(>=0): {1}"
                     .format(tot_g_0 / tot, tot_ge_0 / tot))
+                    
+        print('total accuracy:', total_accuracy)
         
         for idx, action_num in enumerate(action_nums):
             logger.info("the num of action {} is {}".format(idx, action_num))
