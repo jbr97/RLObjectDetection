@@ -104,9 +104,9 @@ class Player(object):
 
 
 
-                    print('len of actions:', len(actions))
-                    print('delta iou lenght:', len(delta_iou))
-                    print('leng old iou:', len(new_iou))
+                    #　print('len of actions:', len(actions))
+                    #　print('delta iou lenght:', len(delta_iou))
+                    #　print('leng old iou:', len(new_iou))
 
 
                     # sample bboxes for a positive and negitive balance
@@ -414,8 +414,8 @@ class Player(object):
         :param bboxes:
         :param actions:
         :return:
-        """
-
+        """  
+     
         assert bboxes.shape[0] == len(actions), 'Unmatched bboxes and actiosn.'
 
         transform_bboxes = bboxes.copy()
