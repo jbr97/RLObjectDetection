@@ -50,7 +50,7 @@ class Player(object):
 
         self._COCO = COCO(config["ann_file"])
 
-    def train(self, train_dataloader):
+    def train(self, train_dataloader, selected_act):
         iters = 0
         losses = AveMeter(30)
         batch_time = AveMeter(30)
@@ -80,8 +80,8 @@ class Player(object):
                     # get actions from eval_net
                     # actions = self.policy.get_action(imgs, bboxes).tolist()
 
-                    # 固定action=5
-                    actions = [5] * bboxes.shape[0] 
+                    # 固定action
+                    actions = [selected_act] * bboxes.shape[0] 
 
                     # replace some action in random policy
                     # for idx in range(len(actions)):
@@ -98,9 +98,7 @@ class Player(object):
 
                     transform_bboxes = self._transform(bboxes, actions)                     # TODO: transform换个写法.       DONE
                     old_iou = self._computeIoU(gts, bboxes)                                # TODO: iou 需要考虑到category.   DONE
-                    # logger.info(len(old_iou))
                     new_iou = self._computeIoU(gts, transform_bboxes)
-                    # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
 
@@ -124,8 +122,9 @@ class Player(object):
                     diou_cnt.add(delta_iou)
                     reward_cnt.add(rewards)
 
-                    zero_num = len([u for u in actions if u == 0])
-                    logger.info("the num of action0 is {}".format(zero_num))
+                    # zero_num = len([u for u in actions if u == 0])
+                    # logger.info("the num of action0 is {}".format(zero_num))
+
                     if j == self.num_rl_steps - 1:
                         not_end = 0
                     else:
@@ -282,7 +281,7 @@ class Player(object):
             ))
 
 
-    def eval(self, val_data_loader, selected_act=5):
+    def eval(self, val_data_loader, selected_act):
         tot_g_0 = 0
         tot_ge_0 = 0
         tot = 0
@@ -331,12 +330,19 @@ class Player(object):
             # get old_iou & new_iou
             transform_bboxes = self._transform(bboxes, actions)
 
+            actions2 = [selected_act] * bboxes.shape[0]
+            transform_bboxes2 = self._transform(bboxes, actions2)
+
             old_iou = self._computeIoU(gts, bboxes)
             new_iou = self._computeIoU(gts, transform_bboxes)
+
+            new_iou2 = self._computeIoU(gts, transform_bboxes2)
 
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
             diou_cnt.add(delta_iou)
+
+            delta_iou2 = [ x - y for x, y in zip(new_iou2, old_iou) ]
 
             pos_ind = np.where(np.array(old_iou) > 0.5)[0]
             q_value = q_value[pos_ind]
@@ -361,9 +367,14 @@ class Player(object):
                 return tp, tt
 
 
-            tp1, tt1 = compute_accuracy(delta_iou, q_value, 0.01)
-            tp5, tt5 = compute_accuracy(delta_iou, q_value, 0.05)
-            tp10, tt10 = compute_accuracy(delta_iou, q_value, 0.10)
+            tp1, tt1 = compute_accuracy(delta_iou2, q_value, 0.01)
+            tp5, tt5 = compute_accuracy(delta_iou2, q_value, 0.05)
+            tp10, tt10 = compute_accuracy(delta_iou2, q_value, 0.10)
+
+            tt1 = 1 if tt1 == 0 else tt1
+            tt5 = 1 if tt5 == 0 else tt5
+            tt10 = 1 if tt10 == 0 else tt10
+                
             print('batch accuracy 1%: {:.3f}  batch accuracy 5%: {:.3f}  batch accuracy 10%: {:.3f}'.format(tp1/tt1, tp5/tt5, tp10/tt10))
 
 
@@ -791,7 +802,7 @@ class Player(object):
         """
         rewards = []
         for i in range(len(actions)):
-            if actions[i] == 0:
+            if actions[i] == self.num_actions:
                 rewards.append(0.02)
             else:
                 # rewards.append(math.tan(delta_iou[i] / 0.14))

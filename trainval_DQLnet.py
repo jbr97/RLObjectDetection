@@ -54,7 +54,7 @@ def main():
     player = Player(cfg)
     if cfg["mode"] == "train":
         logger.info("Start training!!!")
-        player.train(dataloader)
+        player.train(dataloader, cfg["selected_act"])
     elif cfg["mode"] == 'val':
         logger.info("------------Start validate-----------")
         player.eval(dataloader, cfg["selected_act"])

@@ -125,6 +125,7 @@ class ResNet(nn.Module):
 
         self.fc1 = nn.Linear(2048, class_num * action_num)
         #self.relu = nn.ReLU()
+        #self.relu = nn.LeakyReLU()
         #self.fc2 = nn.Linear(2048, action_num)
 
         for m in self.modules():
