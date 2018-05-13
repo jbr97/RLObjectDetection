@@ -336,6 +336,11 @@ class Player(object):
 
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
+            diou_cnt.add(delta_iou)
+
+            pos_ind = np.where(np.array(old_iou) > 0.5)[0]
+            q_value = q_value[pos_ind]
+            delta_iou = np.array(delta_iou)[pos_ind]
 
             def compute_accuracy(diou, q_value, percentage):
                 thresh_ind = int(len(q_value)*(1-percentage))
@@ -374,7 +379,7 @@ class Player(object):
             total_tt[2] += tt5
 
 
-            diou_cnt.add(delta_iou)
+            
 
             iou_nums[0] += len([u for u in delta_iou if u >= 0.1])
             iou_nums[1] += len([u for u in delta_iou if u < 0.1 and u > 0.05])
