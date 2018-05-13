@@ -24,5 +24,6 @@
   "decay_epoch": 1,
   "gamma": 1,
   "pretrain": "data/RL_model_dump/pretrained/faster_rcnn_new.pth",
-  "resume": "ckpt_05131247_minival_panda2/model-1700.pth"
+  "resume": "ckpt_05130241_minival_panda2/model-3000.pth",
+  "selected_act": 4
 }

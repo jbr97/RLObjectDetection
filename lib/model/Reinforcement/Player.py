@@ -282,30 +282,25 @@ class Player(object):
             ))
 
 
-    def eval(self, val_data_loader):
+    def eval(self, val_data_loader, selected_act=5):
         tot_g_0 = 0
         tot_ge_0 = 0
         tot = 0
 
-        start = time.time()
-
         diou_cnt = Counter(100*self.batch_size)
 
-        all_old_bboxes = list()
         all_new_bboxes = list()
         action_nums = [0] * 57
         iou_nums = [0] * 6
 
 
-        selected_act = 5
-
-        total_accuracy = 0
+        total_tp = [0, 0, 0]
+        total_tt = [0, 0, 0]
 
         for i, inp in enumerate(val_data_loader):
             imgs = inp[0]
             bboxes = inp[1]
             gts = inp[2]
-            resize_scales = inp[3][:, 2]
             ids = inp[5]
 
             # get actions
@@ -313,25 +308,18 @@ class Player(object):
 
             q_value = self.policy.get_q_value(imgs, bboxes, selected_action=selected_act)
             
-            # percentage = 0.03
-            # threshold_ind = int(len(q_value)*(1-percentage))
-            # reward_threshold = np.sort(q_value)[threshold_ind]
+            percentage = 0.03
+            threshold_ind = int(len(q_value)*(1-percentage))
+            reward_threshold = np.sort(q_value)[threshold_ind]
 
             actions = []
             
             for q in q_value:
-                if q <= 0:
+                if q <= reward_threshold:
                     actions.append(self.num_actions)
                 else:
                     actions.append(selected_act)
             actions = np.array(actions)
-
-
-            # print('threshold_ind:{},  reward_t:{},  min_reward:{}'.format(threshold_ind, 
-            #                                                             reward_threshold, np.sort(q_value)[0]))
-
-
-            # actions = self.policy.get_action_percentage(imgs, bboxes, 0.03).tolist()
 
             # actions = [self.num_actions] * bboxes.shape[0]
 
@@ -339,18 +327,21 @@ class Player(object):
 
             for action in actions:
                 action_nums[action] += 1
+
             # get old_iou & new_iou
             transform_bboxes = self._transform(bboxes, actions)
-            # old_iou = self._compute_iou(gts, bboxes)
-            # new_iou = self._compute_iou(gts, transform_bboxes)
+
             old_iou = self._computeIoU(gts, bboxes)
             new_iou = self._computeIoU(gts, transform_bboxes)
 
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
-            def compute_accuracy(old_iou, diou, q_value):
-                selected_inds = np.where(np.array(old_iou) > 0.5)[0]
+            def compute_accuracy(diou, q_value, percentage):
+                thresh_ind = int(len(q_value)*(1-percentage))
+                reward_threshold = np.sort(q_value)[thresh_ind]
+
+                selected_inds = np.where(q_value > reward_threshold)[0]
 
                 q1 = q_value[selected_inds]
                 q2 = np.array(diou)[selected_inds]
@@ -358,13 +349,29 @@ class Player(object):
                 dt_pos_neg = q1 > 0
                 gt_pos_neg = q2 > 0
 
-                acc = sum(~(dt_pos_neg^gt_pos_neg)) / len(gt_pos_neg)
-                return acc
+                
+                tp = sum(~(dt_pos_neg^gt_pos_neg))
+                tt = len(gt_pos_neg)
+
+                return tp, tt
 
 
-            accuracy = compute_accuracy(old_iou, delta_iou, q_value)
-            print('accuracy:', accuracy)
-            total_accuracy = (total_accuracy * i + accuracy) / (i+1)
+            tp1, tt1 = compute_accuracy(delta_iou, q_value, 0.01)
+            tp5, tt5 = compute_accuracy(delta_iou, q_value, 0.05)
+            tp10, tt10 = compute_accuracy(delta_iou, q_value, 0.10)
+            print('batch accuracy 1%: {:.3f}  batch accuracy 5%: {:.3f}  batch accuracy 10%: {:.3f}'.format(tp1/tt1, tp5/tt5, tp10/tt10))
+
+
+            # total_accuracy = (total_accuracy * i + accuracy) / (i+1)
+
+            total_tp[0] += tp1
+            total_tt[0] += tt1
+
+            total_tp[1] += tp5
+            total_tt[1] += tt5
+
+            total_tp[2] += tp5
+            total_tt[2] += tt5
 
 
             diou_cnt.add(delta_iou)
@@ -387,30 +394,24 @@ class Player(object):
             tot_ge_0 += ge_0
             tot += len(delta_iou)
 
-            for j, (old_bbox, new_bbox) in enumerate(zip(bboxes, transform_bboxes)):
-                # bbox = (old_bbox[1:5] / resize_scales[j // 100]).tolist()
-                # old_ann = {"image_id": int(ids[int(old_bbox[0])]), "category_id":int(old_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": old_bbox[6]}
-                # bbox = (new_bbox[1:5] / resize_scales[j // 100]).tolist()
+            for j,  new_bbox in enumerate(transform_bboxes):
                 bbox = (new_bbox[1:5] / new_bbox[8]).tolist()
-                
                 new_ann = {"image_id": int(ids[int(new_bbox[0])]), "category_id":int(new_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": new_bbox[6]}
-                #print (old_ann)
-                # all_old_bboxes.append(old_ann)
                 all_new_bboxes.append(new_ann)
-            """
-            if i % 50 == 0:
-                self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
-                self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
-            """        
-        logger.info("Acc(>0): {0} Acc(>=0): {1}"
-                    .format(tot_g_0 / tot, tot_ge_0 / tot))
 
-        print('total accuracy:', total_accuracy)
+        logger.info("Acc(>0): {0} Acc(>=0): {1}".format(tot_g_0 / tot, tot_ge_0 / tot))
+
+        print('----------------------------------')
+        print('total accuracy 1%:', total_tp[0] / total_tt[0])
+        print('total accuracy 5%:', total_tp[1] / total_tt[1])
+        print('total accuracy 10%:', total_tp[2] / total_tt[2])
+        print('----------------------------------')
+        
         
         for idx, action_num in enumerate(action_nums):
             logger.info("the num of action {} is {}".format(idx, action_num))
-        # self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
-        # self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
+        
+
         for iou_num in iou_nums:
             logger.info("rate: {}".format(iou_num / tot))
         self._save_results(all_new_bboxes, os.path.join(self.log_path, "new_results.json"))
