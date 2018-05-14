@@ -90,7 +90,7 @@ def main():
 
 	# create model
 	model = resnet101(
-		num_acts=bbox_action.num_acts, 
+		num_acts=1, #bbox_action.num_acts, 
 		num_classes=config.num_classes)
 	logger.info(model)
 

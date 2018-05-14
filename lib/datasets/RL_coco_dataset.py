@@ -65,6 +65,7 @@ class COCODataset(Dataset):
                 self.dt_boxes, self.gt_boxes, self.bbox_action, 
                 shuffle=True, maxDets=5000, num_workers=32)
 
+        self.pos_weights = 1 if self.pos_weights == 0 else self.pos_weights
         self.pos_wratio = (self.pos_tot + self.neg_tot) / self.pos_weights / 2.
         self.neg_wratio = (self.pos_tot + self.neg_tot) / self.neg_weights / 2.
 
@@ -174,6 +175,8 @@ class COCODataset(Dataset):
         generate_bboxes = np.array(generate_bboxes)
         generate_labels = np.array(generate_labels)
 
+        assert generate_labels.shape == (100, 1, 3), 'Unmatched shape.'
+
 
         # ## undersampling均衡不同类别的样本数量。
         # ind0 = np.where(generate_labels[:, :, 1] == 0)[0]
@@ -252,6 +255,9 @@ class COCODataset(Dataset):
         im_info = [resize_img_h, resize_img_w, resize_scale,
                 origin_img_h, origin_img_w,
                 filename]
+
+        print('image data shape:', img_data.shape)
+        raise RuntimeError
 
         return [img_data, 
                 generate_bboxes, 

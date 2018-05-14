@@ -35,6 +35,10 @@ class COCODataLoader(DataLoader):
         generate_labels = zip_batch[2]
         im_infos = zip_batch[3]
 
+
+
+
+
         max_img_h = max([_.shape[-2] for _ in images])
         max_img_w = max([_.shape[-1] for _ in images])
 
@@ -69,6 +73,14 @@ class COCODataLoader(DataLoader):
             new_labels[:labels.shape[0]] = labels
             padded_labels[bid] = new_labels
         padded_images_var = Variable(padded_images)
+
+
+        print('-----------------shaep--------------')
+        print('padded images :', padded_images_var.shape)
+        print('padded bboxes:', padded_bboxes.shape)
+        print('padded_labels:', padded_labels.shape)
+        print('-------------------------------------')
+        raise RuntimeError
 
         return [padded_images_var,
                 padded_bboxes,

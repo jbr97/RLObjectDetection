@@ -8,19 +8,20 @@ class Action:
 		self.delta = delta
 		self.alpha = alpha
 		self.iou_thres = iou_thres
-		self.num_acts = 4 * len(delta) * 2
-		self.actDeltas = np.zeros((self.num_acts, 4), dtype=np.float32)
+		# self.num_acts = 4 * len(delta) * 2
+		# self.actDeltas = np.zeros((self.num_acts, 4), dtype=np.float32)
+		self.num_acts = 1
+		self.actDeltas = np.array([2**-3, 0, 0, 0], dtype=np.float32)
 
 		self.wtrans = Identify if wtrans is None else wtrans
 
-		idx = 0
+		# idx = 0
 		# for i in range(4): # bbox dimention
-		for i in range(0):
-			for j in range(len(delta)):
-				self.actDeltas[idx, i] = delta[j] * alpha
-				idx += 1
-				# self.actDeltas[idx, i] = -delta[j] * alpha
-				# idx += 1
+		# 	for j in range(len(delta)):
+		# 		self.actDeltas[idx, i] = delta[j] * alpha
+		# 		idx += 1
+		# 		self.actDeltas[idx, i] = -delta[j] * alpha
+		# 		idx += 1
 
 
 	def accuracy_per_box(self, preds, targets):
