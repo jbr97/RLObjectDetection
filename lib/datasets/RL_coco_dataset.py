@@ -197,14 +197,36 @@ class COCODataset(Dataset):
         n_pick4 = n_minind if len(ind4) >= n_minind else len(ind4)
         n_pick5 = n_minind if len(ind5) >= n_minind else len(ind5)
         n_pick6 = n_minind if len(ind6) >= n_minind else len(ind6)
- 
-        ind0 = np.random.choice(ind0, size=n_pick0, replace=False)
-        ind1 = np.random.choice(ind1, size=n_pick1, replace=False)
-        ind2 = np.random.choice(ind2, size=n_pick2, replace=False)
-        ind3 = np.random.choice(ind3, size=n_pick3, replace=False)
-        ind4 = np.random.choice(ind4, size=n_pick4, replace=False)
-        ind5 = np.random.choice(ind5, size=n_pick5, replace=False)
-        ind6 = np.random.choice(ind6, size=n_pick6, replace=False)
+
+
+        if n_pick0 == 0:
+            ind0 = np.array([])
+        else:
+            ind0 = np.random.choice(ind0, size=n_pick0, replace=False)
+        if n_pick1 == 0:
+            ind0 = np.array([])
+        else:
+            ind1 = np.random.choice(ind1, size=n_pick1, replace=False)
+        if n_pick2 == 0:
+            ind2 = np.array([])
+        else:
+            ind2 = np.random.choice(ind2, size=n_pick2, replace=False)
+        if n_pick3 == 0:
+            ind3 = np.array([])
+        else:
+            ind3 = np.random.choice(ind3, size=n_pick3, replace=False)
+        if n_pick4 == 0:
+            ind4 = np.array([])
+        else:
+            ind4 = np.random.choice(ind4, size=n_pick4, replace=False)
+        if n_pick5 == 0:
+            ind5 = np.array([])
+        else:
+            ind5 = np.random.choice(ind5, size=n_pick5, replace=False)
+        if n_pick6 == 0:
+            ind6 == np.array([])
+        else:
+            ind6 = np.random.choice(ind6, size=n_pick6, replace=False)
 
         final_ind = np.concatenate([ind0, ind1, ind2, ind3, ind4, ind5, ind6])
         generate_bboxes = generate_bboxes[final_ind, :, :]
