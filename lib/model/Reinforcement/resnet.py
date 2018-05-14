@@ -138,6 +138,8 @@ class ResNet(nn.Module):
 				m.bias.data.zero_()
 				m.weight.data.normal_(0, 0.01)
 
+		self.criterion = nn.MultiMarginLoss()
+
 	def freeze_layer(self):
 		self._freeze_module(self.conv1)
 		self._freeze_module(self.bn1)
@@ -201,15 +203,23 @@ class ResNet(nn.Module):
 		cls_ids = cls_ids.type(torch.cuda.LongTensor)
 		pred = torch.index_select(pred, 0, cls_ids)
 
-		# pred, targets, weights: (batch, num_acts)
-		loss, noweight_loss = self._weighted_mse_loss(pred, targets, weights)
-		return pred, loss, noweight_loss
+		# 修改loss为multi margin loss.
+		# # pred, targets, weights: (batch, num_acts)
+		# loss, noweight_loss = self._weighted_mse_loss(pred, targets, weights)
+		# return pred, loss, noweight_loss
+
+		loss = self._multi_margin_loss(pred, targets, weights)
+		return pred, loss
 
 	def _weighted_mse_loss(self, inp, targets, weights):
 		# TODO move this function
 		noweight_loss = (inp - targets) ** 2
 		loss = noweight_loss * (weights.expand_as(noweight_loss))
 		return loss.mean(), noweight_loss.mean()
+
+	def _multi_margin_loss(self, inp, targets, weights):
+		loss = self.criterion(inp, targets)
+		return loss
 
 def resnet18(pretrained=False):
 	"""Constructs a ResNet-18 model.

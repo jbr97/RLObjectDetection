@@ -40,8 +40,8 @@ def parse_args():
 
 	parser.add_argument('-e', '--epoch', default=0, type=int,
 						help='test model epoch num (default: 0)')
-	parser.add_argument('-b', '--batch-size', default=24, type=int,
-						help='batch_size (default: 24)')
+	parser.add_argument('-b', '--batch-size', default=32, type=int,
+						help='batch_size (default: 32)')
 	parser.add_argument('--log-interval', default=10, type=int,
 						help='iter logger info interval (default: 10)')
 
@@ -106,7 +106,7 @@ def main():
 	for i, (key, value) in enumerate(dict(model.named_parameters()).items()):
 		if value.requires_grad:
 			if 'bias' in key:
-				params += [{'params': [value], 'lr': config.learning_rate * 2., 'weight_decay': 0}]
+				params += [{'params': [value], 'lr': config.learning_rate * 2., 'weight_decay': 0}]   # TODO 为何bias learning rate和weight不一样？
 			else:
 				params += [{'params': [value], 'lr': config.learning_rate, 'weight_decay': config.weight_decay}]
 
@@ -312,13 +312,15 @@ def Train(epoch, model, train_loader, optimizer):
 		img_var = inp[0].cuda(async=True)
 		bboxes = Variable(inp[1][:,:,:5].contiguous()).cuda(async=True)
 		cls_ids = Variable(inp[1][:,:,6].contiguous()).cuda(async=True)
-		targets = Variable(inp[2][:,:,:,1].contiguous()).cuda(async=True)
+		targets = Variable(torch.LongTensor(inp[2][:,:,:,1].numpy()).contiguous()).cuda(async=True)
 		weights = Variable(inp[2][:,:,:,2].contiguous()).cuda(async=True)
 		data_time.add(time.time() - start)
 
 		# forward
-		pred, loss, noweight_loss = model(img_var, bboxes, cls_ids, targets, weights)
-		loss, noweight_loss = loss.mean(), noweight_loss.mean()
+		# pred, loss, noweight_loss = model(img_var, bboxes, cls_ids, targets, weights)
+		# loss, noweight_loss = loss.mean(), noweight_loss.mean()
+		pred, loss = model(img_var, bboxes, cls_ids, targets, weights)
+		
 
 		# backward
 		optimizer.zero_grad()
@@ -326,19 +328,19 @@ def Train(epoch, model, train_loader, optimizer):
 		optimizer.step()
 		
 		losses.add(loss.item())
-		noweight_losses.add(noweight_loss.item())
+		# noweight_losses.add(noweight_loss.item())
 		batch_time.add(time.time() - start)
 		if i % args.log_interval == 0:
 			logger.info('Train: [{0}][{1}/{2}]\t'
 						'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
 						'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-						'NWLoss {nwlosses.val:.3f} ({nwlosses.avg:.3f})\t'.format(
+						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'.format(
+						# 'NWLoss {nwlosses.val:.3f} ({nwlosses.avg:.3f})\t'.format(
 							epoch + 1, i, len(train_loader),
 							batch_time=batch_time,
 							data_time=data_time,
-							losses=losses,
-							nwlosses=noweight_losses)
+							losses=losses,)
+							# nwlosses=noweight_losses)
 						)
 		start = time.time()
 

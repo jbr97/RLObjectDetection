@@ -90,6 +90,7 @@ class COCODataset(Dataset):
 		Warning:
 			we will feed fake ground truthes if None
 		'''
+		logger = logging.getLogger('global')
 		img_id = self.imgIds[idx]
 
 		## get all image infos from cocoGt
@@ -119,21 +120,46 @@ class COCODataset(Dataset):
 				origin_ious = IoU([bbox], gtboxes, iscrowd)
 				
 				generate_label = []
+				# 修改这一块。label划分更细致，action只有一个，weight去掉，
+				# 吐出的sample在iou>0.5的情况下，使用sampling平衡数量。
 				## enumerate actions and apply to the bbox
+				# for act_id, act_delta in enumerate(self.bbox_action.actDeltas):
+				# 	new_bbox = bbox + act_delta * np.array([w, h, w, h])
+				# 	new_ious = IoU([new_bbox], gtboxes, iscrowd)
+				# 	delta_iou = new_ious.max() - origin_ious.max()
+
+				# 	if delta_iou > self.bbox_action.iou_thres:
+				# 		label = 1
+				# 		weight = self.bbox_action.wtrans(delta_iou)
+				# 		weight *= self.pos_wratio
+				# 	else:
+				# 		label = -1
+				# 		weight = self.bbox_action.wtrans(delta_iou)
+				# 		weight *= self.neg_wratio
+				#
+				#	 generate_label.append([act_id, label, weight])
+
 				for act_id, act_delta in enumerate(self.bbox_action.actDeltas):
 					new_bbox = bbox + act_delta * np.array([w, h, w, h])
 					new_ious = IoU([new_bbox], gtboxes, iscrowd)
 					delta_iou = new_ious.max() - origin_ious.max()
 
-					if delta_iou > self.bbox_action.iou_thres:
+					if delta_iou > 0.1:
+						label = 0
+					elif 0.1 >= delta_iou and delta_iou > 0.05:
 						label = 1
-						weight = self.bbox_action.wtrans(delta_iou)
-						weight *= self.pos_wratio
-					else:
-						label = -1
-						weight = self.bbox_action.wtrans(delta_iou)
-						weight *= self.neg_wratio
-	
+					elif 0.5 >= delta_iou and delta_iou > 0.0:
+						label = 2
+					elif delta_iou == 0:
+						label = 3
+					elif 0 > delta_iou and delta_iou >= -0.05:
+						label = 4
+					elif -0.05 > delta_iou and delta_iou >= -0.1:
+						label = 5
+					elif -0.1 > delta_iou:
+						label = 6
+						
+					weight = 1.0
 					generate_label.append([act_id, label, weight])
 
 				## attach the generated bbox and labels
@@ -147,8 +173,39 @@ class COCODataset(Dataset):
 		## image data processing
 		generate_bboxes = np.array(generate_bboxes)
 		generate_labels = np.array(generate_labels)
+
+
+		## undersampling均衡不同类别的样本数量。
+		ind0 = np.where(generate_labels[:, 1] == 0)[0]
+		ind1 = np.where(generate_labels[:, 1] == 1)[0]
+		ind2 = np.where(generate_labels[:, 1] == 2)[0]
+		ind3 = np.where(generate_labels[:, 1] == 3)[0]
+		ind4 = np.where(generate_labels[:, 1] == 4)[0]
+		ind5 = np.where(generate_labels[:, 1] == 5)[0]
+		ind6 = np.where(generate_labels[:, 1] == 6)[0]
+
+		n_minind = min(len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6))
+
+		logger.info('n of different classes: {}, {}, {}, {}, {}, {}, {}'.format(
+					len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6)))
+		assert n_minind >= 5, 'The num of samples is too small.'
+
+		ind0 = np.random.choice(ind0, size=n_minind, replace=False)
+		ind1 = np.random.choice(ind1, size=n_minind, replace=False)
+		ind2 = np.random.choice(ind2, size=n_minind, replace=False)
+		ind3 = np.random.choice(ind3, size=n_minind, replace=False)
+		ind4 = np.random.choice(ind4, size=n_minind, replace=False)
+		ind5 = np.random.choice(ind5, size=n_minind, replace=False)
+		ind6 = np.random.choice(ind6, size=n_minind, replace=False)
+
+		final_ind = np.concatenate([ind0, ind1, ind2, ind3, ind4, ind5, ind6])
+		generate_bboxes = generate_bboxes[final_ind, :]
+		generate_labels = generate_labels[final_ind, :]
+
+
 		if self.transform_fn:
-			resize_scale, img, bboxes = self.transform_fn(img, generate_bboxes)
+			# resize_scale, img, bboxes = self.transform_fn(img, generate_bboxes)    # TODO 返回的bboxes没有用过
+			resize_scale, img, generate_bboxes = self.transform_fn(img, generate_bboxes)
 		else:
 			resize_scale = 1
 		resize_img_w, resize_img_h = img.size
