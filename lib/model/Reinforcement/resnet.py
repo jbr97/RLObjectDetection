@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 from model.roi_align.modules.roi_align import RoIAlignAvg
+import logging
 
 import torch
 import torch.nn as nn
@@ -124,7 +125,8 @@ class ResNet(nn.Module):
 		self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
 		#self.fc8 = nn.Linear(2048, 4096)
-		self.fc = nn.Linear(2048, num_acts * num_classes)
+		# self.fc = nn.Linear(2048, num_acts * num_classes)
+		self.fc = nn.Linear(2048, 7 * num_classes)
 
 		for m in self.modules():
 			if isinstance(m, nn.Conv2d):
@@ -169,11 +171,13 @@ class ResNet(nn.Module):
 
 	def forward(self, img, bboxes, cls_ids, targets, weights):
 		bboxes = bboxes.view(-1, 5)
-		batch_size = bboxes.size(0)
+		n_bboxes = bboxes.size(0)
 
-		cls_ids = cls_ids.view(batch_size)
-		targets = targets.view(batch_size, self.num_acts)
-		weights = weights.view(batch_size, self.num_acts)
+		cls_ids = cls_ids.view(n_bboxes)
+		# targets = targets.view(batch_size, self.num_acts)
+		# weights = weights.view(batch_size, self.num_acts)
+		targets = targets.view(n_bboxes, 1)
+		weights = weights.view(n_bboxes, 1)
 
 		x = self.conv1(img)
 		x = self.bn1(x)
@@ -198,10 +202,13 @@ class ResNet(nn.Module):
 		
 		# with shape (batch*num_classes, num_acts)
 		pred = pred.reshape(-1, self.num_acts)
-		cls_ids += torch.range(0, self.num_classes * batch_size - 1, self.num_classes).cuda()
+		cls_ids += torch.range(0, self.num_classes * n_bboxes - 1, self.num_classes).cuda()
 		# index select with class indices
 		cls_ids = cls_ids.type(torch.cuda.LongTensor)
 		pred = torch.index_select(pred, 0, cls_ids)
+
+		logger = logging.getLogger('global')
+		logger.info('pred shape: {}'.format(pred.shape))
 
 		# 修改loss为multi margin loss.
 		# # pred, targets, weights: (batch, num_acts)

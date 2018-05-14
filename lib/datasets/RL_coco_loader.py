@@ -85,6 +85,10 @@ class COCODataLoader(DataLoader):
         #raise RuntimeError
 
 
+        
+        # padded_labels shape: batch x 100 x 1 x 3, 将其垒起来.
+        # padded_bboxes shape: batch x 100 x 8, 将其垒起来.
+        # padded images shape: batch x 3 x H x W.
         assert batch_size == padded_bboxes.shape[0] and 100 == padded_bboxes.shape[1], 'Unmatched size: padded_boxes.shape={}'.format(padded_bboxes.shape)
         padded_bboxes = padded_bboxes.view(batch_size * 100, -1)
         padded_labels = padded_labels.view(batch_size * 100, -1)
