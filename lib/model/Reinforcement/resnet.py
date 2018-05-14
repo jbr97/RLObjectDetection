@@ -126,7 +126,7 @@ class ResNet(nn.Module):
 
 		#self.fc8 = nn.Linear(2048, 4096)
 		# self.fc = nn.Linear(2048, num_acts * num_classes)
-		self.fc = nn.Linear(2048, 7 * num_classes)
+		self.fc = nn.Linear(2048, num_classes * 7)
 
 		for m in self.modules():
 			if isinstance(m, nn.Conv2d):
@@ -176,7 +176,7 @@ class ResNet(nn.Module):
 		cls_ids = cls_ids.view(n_bboxes)
 		# targets = targets.view(batch_size, self.num_acts)
 		# weights = weights.view(batch_size, self.num_acts)
-		targets = targets.view(n_bboxes, 1)
+		targets = targets.view(n_bboxes)
 		weights = weights.view(n_bboxes, 1)
 
 		x = self.conv1(img)
@@ -200,15 +200,18 @@ class ResNet(nn.Module):
 		#x = self.relu(x)
 		pred = self.fc(x)
 		
-		# with shape (batch*num_classes, num_acts)
-		pred = pred.reshape(-1, self.num_acts)
-		cls_ids += torch.range(0, self.num_classes * n_bboxes - 1, self.num_classes).cuda()
-		# index select with class indices
-		cls_ids = cls_ids.type(torch.cuda.LongTensor)
-		pred = torch.index_select(pred, 0, cls_ids)
+		# # with shape (batch*num_classes, num_acts)
+		# # pred = pred.reshape(-1, self.num_acts)
+		# cls_ids += torch.range(0, self.num_classes * n_bboxes - 1, self.num_classes).cuda()
+		# # index select with class indices
+		# cls_ids = cls_ids.type(torch.cuda.LongTensor)
+		# pred = torch.index_select(pred, 0, cls_ids)
 
-		logger = logging.getLogger('global')
-		logger.info('pred shape: {}'.format(pred.shape))
+		pred = pred.reshape(n_bboxes, self.num_classes, 7)
+		pred = pred[range(n_bboxes), cls_ids, :].view(n_bboxes, 7)
+
+		# logger = logging.getLogger('global')
+		# logger.info('pred shape: {}'.format(pred.shape))
 
 		# 修改loss为multi margin loss.
 		# # pred, targets, weights: (batch, num_acts)

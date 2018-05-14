@@ -38,7 +38,7 @@ class Config:
 	# SGD settings
 	momentum = 0.9
 	weight_decay = 0.0001
-	learning_rate = 0.01
+	learning_rate = 0.001
 
 	# data_loader settings
 	num_workers = 6

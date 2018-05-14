@@ -198,7 +198,7 @@ class COCODataset(Dataset):
                 origin_img_h, origin_img_w,
                 filename]
 
-        logger.info('image data shape: {}'.format(img_data.shape))
+        # logger.info('image data shape: {}'.format(img_data.shape))
 
         return [img_data, 
                 generate_bboxes, 

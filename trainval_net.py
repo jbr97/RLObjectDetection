@@ -181,13 +181,16 @@ def Evaluate(model, val_loader, bbox_action):
 	losses = AveMeter(100)
 	batch_time = AveMeter(100)
 	data_time = AveMeter(100)
-	Prec_per_box = AveMeter(len(val_loader))
-	Prec1_per_img = AveMeter(len(val_loader))
-	Prec5_per_img = AveMeter(len(val_loader))
-	Prec10_per_img = AveMeter(len(val_loader))
-	Prec1_per_act = AveMeter(bbox_action.num_acts)
-	Prec5_per_act = AveMeter(bbox_action.num_acts)
-	Prec10_per_act = AveMeter(bbox_action.num_acts)
+	Prec1_per_batch = AveMeter(args.batch_size*100*len(val_loader))
+	Prec5_per_batch = AveMeter(args.batch_size*100*len(val_loader))
+	Prec10_per_batch = AveMeter(args.batch_size*100*len(val_loader))
+	# Prec_per_box = AveMeter(len(val_loader))
+	# Prec1_per_img = AveMeter(len(val_loader))
+	# Prec5_per_img = AveMeter(len(val_loader))
+	# Prec10_per_img = AveMeter(len(val_loader))
+	# Prec1_per_act = AveMeter(bbox_action.num_acts)
+	# Prec5_per_act = AveMeter(bbox_action.num_acts)
+	# Prec10_per_act = AveMeter(bbox_action.num_acts)
 	model.eval()
 
 	start = time.time()
@@ -195,8 +198,8 @@ def Evaluate(model, val_loader, bbox_action):
 		# input data processing
 		img_var = inp[0].cuda(async=True)
 		bboxes = Variable(inp[1][:,:5].contiguous()).cuda(async=True)
-		cls_ids = Variable(inp[1][:,6].contiguous()).cuda(async=True)
-		targets = Variable(inp[2][:,1].contiguous()).cuda(async=True)
+		cls_ids = Variable(torch.LongTensor(inp[1][:,6].numpy()).contiguous()).cuda(async=True)
+		targets = Variable(torch.LongTensor(inp[2][:,1].numpy()).contiguous()).cuda(async=True)
 		weights = Variable(inp[2][:,2].contiguous()).cuda(async=True)
 		data_time.add(time.time() - start)
 
@@ -212,28 +215,39 @@ def Evaluate(model, val_loader, bbox_action):
 		batch_size = args.batch_size
 		assert batch_size * 100 == bboxes.shape[0], 'Unmatched shape: {}'.format(bboxes.shape)
 
-		# get output datas   # TODO
-		preds = pred.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
-		targets = targets.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
+		# get output datas  
+		n_bboxes = bboxes.shape[0]
+		preds = pred.cpu().data.numpy().reshape(n_bboxes, 7)
+		targets = targets.cpu().data.numpy().reshape(n_bboxes)
 
-		# get precs
-		prec_per_box = bbox_action.accuracy_per_box(preds, targets)
-		prec1_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=1)
-		prec5_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=5)
-		prec10_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=10)
-		Prec_per_box.add(prec_per_box)
-		Prec1_per_img.add(prec1_per_img.mean())
-		Prec5_per_img.add(prec5_per_img.mean())
-		Prec10_per_img.add(prec10_per_img.mean())
+		# # get precs
+		# prec_per_box = bbox_action.accuracy_per_box(preds, targets)
+		# prec1_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=1)
+		# prec5_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=5)
+		# prec10_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=10)
+		# Prec_per_box.add(prec_per_box)
+		# Prec1_per_img.add(prec1_per_img.mean())
+		# Prec5_per_img.add(prec5_per_img.mean())
+		# Prec10_per_img.add(prec10_per_img.mean())
+
+
+
+		prec1_per_batch = bbox_action.accuracy_per_batch(preds, targets, percentage=0.01)
+		prec5_per_batch = bbox_action.accuracy_per_batch(preds, targets, percentage=0.05)
+		prec10_per_batch = bbox_action.accuracy_per_batch(preds, targets, percentage=0.10)
+		Prec1_per_batch.add(prec1_per_batch)
+		Prec5_per_batch.add(prec5_per_batch)
+		Prec10_per_batch.add(prec10_per_batch)
+
 
 		# collect preds & targets
 		if i == 0:
 			dt_boxes = []
-			all_preds = preds.reshape(-1, bbox_action.num_acts)
-			all_targets = targets.reshape(-1, bbox_action.num_acts)
+			all_preds = preds.reshape(-1, 7)
+			all_targets = targets.reshape(-1)
 		else:
-			all_preds = np.concatenate([all_preds, preds.reshape(-1, bbox_action.num_acts)], axis=0)
-			all_targets = np.concatenate([all_targets, targets.reshape(-1, bbox_action.num_acts)], axis=0)
+			all_preds = np.concatenate([all_preds, preds.reshape(-1, 7)], axis=0)
+			all_targets = np.concatenate([all_targets, targets.reshape(-1)], axis=0)
 
 		# get new boxes
 		#newboxes, preck = bbox_action.move_from_act(bboxes[:,:,1:5], preds, targets, maxk=1)
@@ -258,42 +272,62 @@ def Evaluate(model, val_loader, bbox_action):
 		losses.add(loss.item())
 		batch_time.add(time.time() - start)
 		if i % args.log_interval == 0 or i == len(val_loader)-1:
+			# logger.info('Test: [{0}/{1}]\t'
+			# 			'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+			# 			'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+			# 			'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
+			# 			'Prec_per_box {Prec_per_box.val:.3f} ({Prec_per_box.avg:.3f})\t'
+			# 			'Prec1_per_img {Prec1_per_img.val:.3f} ({Prec1_per_img.avg:.3f})\t'
+			# 			'Prec5_per_img {Prec5_per_img.val:.3f} ({Prec5_per_img.avg:.3f})\t'
+			# 			'Prec10_per_img {Prec10_per_img.val:.3f} ({Prec10_per_img.avg:.3f})\t'.format(
+			# 				i, len(val_loader),
+			# 				batch_time=batch_time,
+			# 				data_time=data_time,
+			# 				losses=losses,
+			# 				Prec_per_box=Prec_per_box, 
+			# 				Prec1_per_img=Prec1_per_img, 
+			# 				Prec5_per_img=Prec5_per_img, 
+			# 				Prec10_per_img=Prec10_per_img)
+			# 			)
 			logger.info('Test: [{0}/{1}]\t'
 						'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
 						'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
 						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-						'Prec_per_box {Prec_per_box.val:.3f} ({Prec_per_box.avg:.3f})\t'
-						'Prec1_per_img {Prec1_per_img.val:.3f} ({Prec1_per_img.avg:.3f})\t'
-						'Prec5_per_img {Prec5_per_img.val:.3f} ({Prec5_per_img.avg:.3f})\t'
-						'Prec10_per_img {Prec10_per_img.val:.3f} ({Prec10_per_img.avg:.3f})\t'.format(
+						'Prec1_per_img {Prec1_per_batch.val:.3f} ({Prec1_per_batch.avg:.3f})\t'
+						'Prec5_per_img {Prec5_per_batch.val:.3f} ({Prec5_per_batch.avg:.3f})\t'
+						'Prec10_per_img {Prec10_per_batch.val:.3f} ({Prec10_per_batch.avg:.3f})\t'.format(
 							i, len(val_loader),
 							batch_time=batch_time,
 							data_time=data_time,
-							losses=losses,
-							Prec_per_box=Prec_per_box, 
-							Prec1_per_img=Prec1_per_img, 
-							Prec5_per_img=Prec5_per_img, 
-							Prec10_per_img=Prec10_per_img)
+							losses=losses, 
+							Prec1_per_batch=Prec1_per_batch, 
+							Prec5_per_batch=Prec5_per_batch, 
+							Prec10_per_batch=Prec10_per_batch)
 						)
+
 		start = time.time()
 
-	prec1_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.01)
-	prec5_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.05)
-	prec10_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.1)
+	# prec1_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.01)
+	# prec5_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.05)
+	# prec10_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.1)
+
+	prec1_per_batch = bbox_action.accuracy_per_batch(all_preds, all_targets, percentage=0.01)
+	prec5_per_batch = bbox_action.accuracy_per_batch(all_preds, all_targets, percentage=0.05)
+	prec10_per_batch = bbox_action.accuracy_per_batch(all_preds, all_targets, percentage=0.1)
 
 	for act_id in range(bbox_action.num_acts):
-		Prec1_per_act.add(prec1_per_act[act_id])
-		Prec5_per_act.add(prec5_per_act[act_id])
-		Prec10_per_act.add(prec10_per_act[act_id])
+		# Prec1_per_act.add(prec1_per_act[act_id])
+		# Prec5_per_act.add(prec5_per_act[act_id])
+		# Prec10_per_act.add(prec10_per_act[act_id])
 		logger.info('Action id: [{0}]\t'
 					'Action Delta: {1}\t'
-					'Prec1_per_act {Prec1_per_act.val:.3f} ({Prec1_per_act.avg:.3f})\t'
-					'Prec5_per_act {Prec5_per_act.val:.3f} ({Prec5_per_act.avg:.3f})\t'
-					'Prec10_per_act {Prec10_per_act.val:.3f} ({Prec10_per_act.avg:.3f})\t'.format(
+					'Prec1_per_act {:.3f} ({:.3f})\t'
+					'Prec5_per_act {:.3f} ({:.3f})\t'
+					'Prec10_per_act {:.3f} ({:.3f})\t'.format(
 						act_id, str(bbox_action.actDeltas[act_id]),
-						Prec1_per_act=Prec1_per_act,
-						Prec5_per_act=Prec5_per_act,
-						Prec10_per_act=Prec10_per_act)
+						Prec1_per_batch,
+						Prec5_per_batch,
+						Prec10_per_batch)
 					)
 	return dt_boxes
 
@@ -313,7 +347,7 @@ def Train(epoch, model, train_loader, optimizer):
 		# input data processing
 		img_var = inp[0].cuda(async=True)
 		bboxes = Variable(inp[1][:,:5].contiguous()).cuda(async=True)
-		cls_ids = Variable(inp[1][:,6].contiguous()).cuda(async=True)
+		cls_ids = Variable(torch.LongTensor(inp[1][:,6].numpy()).contiguous()).cuda(async=True)
 		targets = Variable(torch.LongTensor(inp[2][:,1].numpy()).contiguous()).cuda(async=True)
 		weights = Variable(inp[2][:,2].contiguous()).cuda(async=True)
 		data_time.add(time.time() - start)

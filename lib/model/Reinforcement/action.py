@@ -24,6 +24,21 @@ class Action:
 		# 		idx += 1
 
 
+	def accuracy_per_batch(self, preds, targets, percentage=0.01):
+		"""
+		preds: np.array, n_bboxes x 7
+		targets: np.array, n_bboxes
+		"""
+		n_bboxes, n_bins = preds.shape
+		assert n_bboxes == targets.shape[0] and n_bins == 7
+
+		n_top = int(n_bboxes * percentage)
+		cnt_correct = 0
+		for i in range(7):
+			ind = np.argsort(preds[:, i])[-n_top:]
+			cnt_correct += sum(targets[ind] == i)
+		return cnt_correct * 100. / n_top / 7 
+
 	def accuracy_per_box(self, preds, targets):
 		"""
 			input:

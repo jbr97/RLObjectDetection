@@ -77,11 +77,11 @@ class COCODataLoader(DataLoader):
         padded_images_var = Variable(padded_images)
 
 
-        logger.info('-----------------shape--------------')
-        logger.info('padded images: {}'.format(padded_images_var.shape))
-        logger.info('padded bboxes: {}'.format(padded_bboxes.shape))
-        logger.info('padded_labels: {}'.format(padded_labels.shape))
-        logger.info('-------------------------------------')
+        # logger.info('-----------------shape--------------')
+        # logger.info('padded images: {}'.format(padded_images_var.shape))
+        # logger.info('padded bboxes: {}'.format(padded_bboxes.shape))
+        # logger.info('padded_labels: {}'.format(padded_labels.shape))
+        # logger.info('-------------------------------------')
         #raise RuntimeError
 
 
@@ -106,15 +106,16 @@ class COCODataLoader(DataLoader):
 
         logger.info('n of different classes: {}, {}, {}, {}, {}, {}, {}'.format(
                     len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6)))
-        assert n_minind >= 5, 'The num of samples is too small.'
+        #assert n_minind >= 5, 'The num of samples is too small.'
 
-        n_pick0 = n_minind if len(ind0) >= n_minind else len(ind0)
-        n_pick1 = n_minind if len(ind1) >= n_minind else len(ind1)
-        n_pick2 = n_minind if len(ind2) >= n_minind else len(ind2)
-        n_pick3 = n_minind if len(ind3) >= n_minind else len(ind3)
-        n_pick4 = n_minind if len(ind4) >= n_minind else len(ind4)
-        n_pick5 = n_minind if len(ind5) >= n_minind else len(ind5)
-        n_pick6 = n_minind if len(ind6) >= n_minind else len(ind6)
+        n_minind = 5
+        n_pick0 = 5 if len(ind0) >= n_minind else len(ind0)
+        n_pick1 = 5 if len(ind1) >= n_minind else len(ind1)
+        n_pick2 = 5 if len(ind2) >= n_minind else len(ind2)
+        n_pick3 = 5 if len(ind3) >= n_minind else len(ind3)
+        n_pick4 = 5 if len(ind4) >= n_minind else len(ind4)
+        n_pick5 = 5 if len(ind5) >= n_minind else len(ind5)
+        n_pick6 = 5 if len(ind6) >= n_minind else len(ind6)
 
 
         if n_pick0 == 0:
