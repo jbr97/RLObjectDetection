@@ -194,10 +194,10 @@ def Evaluate(model, val_loader, bbox_action):
 	for i, inp in enumerate(val_loader):
 		# input data processing
 		img_var = inp[0].cuda(async=True)
-		bboxes = Variable(inp[1][:,:,:5].contiguous()).cuda(async=True)
-		cls_ids = Variable(inp[1][:,:,6].contiguous()).cuda(async=True)
-		targets = Variable(inp[2][:,:,:,1].contiguous()).cuda(async=True)
-		weights = Variable(inp[2][:,:,:,2].contiguous()).cuda(async=True)
+		bboxes = Variable(inp[1][:,:5].contiguous()).cuda(async=True)
+		cls_ids = Variable(inp[1][:,6].contiguous()).cuda(async=True)
+		targets = Variable(inp[2][:,1].contiguous()).cuda(async=True)
+		weights = Variable(inp[2][:,2].contiguous()).cuda(async=True)
 		data_time.add(time.time() - start)
 
 		# forward
@@ -206,11 +206,13 @@ def Evaluate(model, val_loader, bbox_action):
 
 		# get output boxes
 		bboxes = inp[1].numpy()
-		bboxes[:, :, 3] = bboxes[:, :, 3] - bboxes[:, :, 1]
-		bboxes[:, :, 4] = bboxes[:, :, 4] - bboxes[:, :, 2]
-		batch_size = bboxes.shape[0]
+		bboxes[:, 3] = bboxes[:, 3] - bboxes[:, 1]
+		bboxes[:, 4] = bboxes[:, 4] - bboxes[:, 2]
+		# batch_size = bboxes.shape[0]
+		batch_size = args.batch_size
+		assert batch_size * 100 == bboxes.shape[0], 'Unmatched shape: {}'.format(bboxes.shape)
 
-		# get output datas
+		# get output datas   # TODO
 		preds = pred.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
 		targets = targets.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
 
@@ -310,10 +312,10 @@ def Train(epoch, model, train_loader, optimizer):
 	for i, inp in enumerate(train_loader):
 		# input data processing
 		img_var = inp[0].cuda(async=True)
-		bboxes = Variable(inp[1][:,:,:5].contiguous()).cuda(async=True)
-		cls_ids = Variable(inp[1][:,:,6].contiguous()).cuda(async=True)
-		targets = Variable(torch.LongTensor(inp[2][:,:,:,1].numpy()).contiguous()).cuda(async=True)
-		weights = Variable(inp[2][:,:,:,2].contiguous()).cuda(async=True)
+		bboxes = Variable(inp[1][:,:5].contiguous()).cuda(async=True)
+		cls_ids = Variable(inp[1][:,6].contiguous()).cuda(async=True)
+		targets = Variable(torch.LongTensor(inp[2][:,1].numpy()).contiguous()).cuda(async=True)
+		weights = Variable(inp[2][:,2].contiguous()).cuda(async=True)
 		data_time.add(time.time() - start)
 
 		# forward

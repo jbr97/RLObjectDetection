@@ -11,7 +11,7 @@ class Action:
 		# self.num_acts = 4 * len(delta) * 2
 		# self.actDeltas = np.zeros((self.num_acts, 4), dtype=np.float32)
 		self.num_acts = 1
-		self.actDeltas = np.array([2**-3, 0, 0, 0], dtype=np.float32)
+		self.actDeltas = np.array([[2**-3, 0, 0, 0]], dtype=np.float32)
 
 		self.wtrans = Identify if wtrans is None else wtrans
 

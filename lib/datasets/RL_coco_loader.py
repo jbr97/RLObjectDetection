@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 import numpy as np
+import logging
 
 class COCODataLoader(DataLoader):
     #TODO
@@ -27,6 +28,7 @@ class COCODataLoader(DataLoader):
                         origin_image_h, origin_image_w,
                         filename)
         '''
+        logger = logging.getLogger('global')
         batch_size = len(batch)
 
         zip_batch = list(zip(*batch))
@@ -75,12 +77,74 @@ class COCODataLoader(DataLoader):
         padded_images_var = Variable(padded_images)
 
 
-        print('-----------------shaep--------------')
-        print('padded images :', padded_images_var.shape)
-        print('padded bboxes:', padded_bboxes.shape)
-        print('padded_labels:', padded_labels.shape)
-        print('-------------------------------------')
-        raise RuntimeError
+        logger.info('-----------------shape--------------')
+        logger.info('padded images: {}'.format(padded_images_var.shape))
+        logger.info('padded bboxes: {}'.format(padded_bboxes.shape))
+        logger.info('padded_labels: {}'.format(padded_labels.shape))
+        logger.info('-------------------------------------')
+        #raise RuntimeError
+
+
+        assert batch_size == padded_bboxes.shape[0] and 100 == padded_bboxes.shape[1], 'Unmatched size: padded_boxes.shape={}'.format(padded_bboxes.shape)
+        padded_bboxes = padded_bboxes.view(batch_size * 100, -1)
+        padded_labels = padded_labels.view(batch_size * 100, -1)
+
+        ## undersampling均衡不同类别的样本数量。
+        ind0 = np.where(padded_labels[:, 1] == 0)[0]
+        ind1 = np.where(padded_labels[:, 1] == 1)[0]
+        ind2 = np.where(padded_labels[:, 1] == 2)[0]
+        ind3 = np.where(padded_labels[:, 1] == 3)[0]
+        ind4 = np.where(padded_labels[:, 1] == 4)[0]
+        ind5 = np.where(padded_labels[:, 1] == 5)[0]
+        ind6 = np.where(padded_labels[:, 1] == 6)[0]
+
+        n_minind = min(len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6))
+
+        logger.info('n of different classes: {}, {}, {}, {}, {}, {}, {}'.format(
+                    len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6)))
+        assert n_minind >= 5, 'The num of samples is too small.'
+
+        n_pick0 = n_minind if len(ind0) >= n_minind else len(ind0)
+        n_pick1 = n_minind if len(ind1) >= n_minind else len(ind1)
+        n_pick2 = n_minind if len(ind2) >= n_minind else len(ind2)
+        n_pick3 = n_minind if len(ind3) >= n_minind else len(ind3)
+        n_pick4 = n_minind if len(ind4) >= n_minind else len(ind4)
+        n_pick5 = n_minind if len(ind5) >= n_minind else len(ind5)
+        n_pick6 = n_minind if len(ind6) >= n_minind else len(ind6)
+
+
+        if n_pick0 == 0:
+            ind0 = np.array([])
+        else:
+            ind0 = np.random.choice(ind0, size=n_pick0, replace=False)
+        if n_pick1 == 0:
+            ind0 = np.array([])
+        else:
+            ind1 = np.random.choice(ind1, size=n_pick1, replace=False)
+        if n_pick2 == 0:
+            ind2 = np.array([])
+        else:
+            ind2 = np.random.choice(ind2, size=n_pick2, replace=False)
+        if n_pick3 == 0:
+            ind3 = np.array([])
+        else:
+            ind3 = np.random.choice(ind3, size=n_pick3, replace=False)
+        if n_pick4 == 0:
+            ind4 = np.array([])
+        else:
+            ind4 = np.random.choice(ind4, size=n_pick4, replace=False)
+        if n_pick5 == 0:
+            ind5 = np.array([])
+        else:
+            ind5 = np.random.choice(ind5, size=n_pick5, replace=False)
+        if n_pick6 == 0:
+            ind6 == np.array([])
+        else:
+            ind6 = np.random.choice(ind6, size=n_pick6, replace=False)
+
+        final_ind = np.concatenate([ind0, ind1, ind2, ind3, ind4, ind5, ind6])
+        padded_bboxes = padded_bboxes[final_ind, :]
+        padded_labels = padded_labels[final_ind, :]
 
         return [padded_images_var,
                 padded_bboxes,

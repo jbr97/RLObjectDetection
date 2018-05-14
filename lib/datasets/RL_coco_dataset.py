@@ -175,65 +175,7 @@ class COCODataset(Dataset):
         generate_bboxes = np.array(generate_bboxes)
         generate_labels = np.array(generate_labels)
 
-        assert generate_labels.shape == (100, 1, 3), 'Unmatched shape.'
-
-
-        # ## undersampling均衡不同类别的样本数量。
-        # ind0 = np.where(generate_labels[:, :, 1] == 0)[0]
-        # ind1 = np.where(generate_labels[:, :, 1] == 1)[0]
-        # ind2 = np.where(generate_labels[:, :, 1] == 2)[0]
-        # ind3 = np.where(generate_labels[:, :, 1] == 3)[0]
-        # ind4 = np.where(generate_labels[:, :, 1] == 4)[0]
-        # ind5 = np.where(generate_labels[:, :, 1] == 5)[0]
-        # ind6 = np.where(generate_labels[:, :, 1] == 6)[0]
-
-        # n_minind = min(len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6))
-
-        # logger.info('n of different classes: {}, {}, {}, {}, {}, {}, {}'.format(
-        #             len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6)))
-        # assert n_minind >= 5, 'The num of samples is too small.'
-
-        # n_pick0 = n_minind if len(ind0) >= n_minind else len(ind0)
-        # n_pick1 = n_minind if len(ind1) >= n_minind else len(ind1)
-        # n_pick2 = n_minind if len(ind2) >= n_minind else len(ind2)
-        # n_pick3 = n_minind if len(ind3) >= n_minind else len(ind3)
-        # n_pick4 = n_minind if len(ind4) >= n_minind else len(ind4)
-        # n_pick5 = n_minind if len(ind5) >= n_minind else len(ind5)
-        # n_pick6 = n_minind if len(ind6) >= n_minind else len(ind6)
-
-
-        # if n_pick0 == 0:
-        #     ind0 = np.array([])
-        # else:
-        #     ind0 = np.random.choice(ind0, size=n_pick0, replace=False)
-        # if n_pick1 == 0:
-        #     ind0 = np.array([])
-        # else:
-        #     ind1 = np.random.choice(ind1, size=n_pick1, replace=False)
-        # if n_pick2 == 0:
-        #     ind2 = np.array([])
-        # else:
-        #     ind2 = np.random.choice(ind2, size=n_pick2, replace=False)
-        # if n_pick3 == 0:
-        #     ind3 = np.array([])
-        # else:
-        #     ind3 = np.random.choice(ind3, size=n_pick3, replace=False)
-        # if n_pick4 == 0:
-        #     ind4 = np.array([])
-        # else:
-        #     ind4 = np.random.choice(ind4, size=n_pick4, replace=False)
-        # if n_pick5 == 0:
-        #     ind5 = np.array([])
-        # else:
-        #     ind5 = np.random.choice(ind5, size=n_pick5, replace=False)
-        # if n_pick6 == 0:
-        #     ind6 == np.array([])
-        # else:
-        #     ind6 = np.random.choice(ind6, size=n_pick6, replace=False)
-
-        # final_ind = np.concatenate([ind0, ind1, ind2, ind3, ind4, ind5, ind6])
-        # generate_bboxes = generate_bboxes[final_ind, :, :]
-        # generate_labels = generate_labels[final_ind, :, :]
+        assert generate_labels.shape == (100, 1, 3), 'Unmatched shape: {}'.format(generate_labels.shape)
 
 
         if self.transform_fn:
@@ -256,8 +198,7 @@ class COCODataset(Dataset):
                 origin_img_h, origin_img_w,
                 filename]
 
-        print('image data shape:', img_data.shape)
-        raise RuntimeError
+        logger.info('image data shape: {}'.format(img_data.shape))
 
         return [img_data, 
                 generate_bboxes, 
