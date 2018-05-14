@@ -740,7 +740,13 @@ class Player(object):
             new_bboxes = new_bboxes[res_ind]
             new_actions = new_actions[res_ind].tolist()
             new_transform_bboxes = new_transform_bboxes[res_ind]
-            new_delta_iou = new_delta_iou[res_ind]
+            new_delta_iou = new_delta_iou[res_ind].tolist()
+
+            num_pos_diou = len([x for x in new_delta_iou if x > 0])
+            num_neg_diou = len([x for x in new_delta_iou if x < 0])
+            num_zero_diou = len([x for x in new_delta_iou if x == 0])
+
+            logger.info('num of after diou pos:neg:zero {} : {} : {}'.format(num_pos_diou, num_neg_diou, num_zero_diou))
 
         return new_bboxes, new_actions, new_transform_bboxes, new_delta_iou
 
