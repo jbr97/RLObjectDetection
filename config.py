@@ -8,7 +8,7 @@ class Config:
 	num_classes = 80
 	pretrained_model = 'data/RL_model_dump/pretrained/faster_rcnn_new.pth'
 	# save_directory
-	save_dir = 'data/RL_model_dump/RL_linear.act7.step1.weight_globalnorm_exp/'
+	save_dir = 'multimargin.act1.step1.weight_no/'
 
 	# train settings
 	train_img_short = [800]
@@ -16,9 +16,12 @@ class Config:
 	train_flip = False
 	train_max_epoch = 25
 	train_lr_decay = [18, 22]
-	train_data_dir = 'data/coco/images/train2014'
-	train_ann_file = 'data/coco/annotations/instances_train2014.json'
-	train_dt_file = 'data/output/detections_train2014_results.json'
+	# train_data_dir = 'data/coco/images/train2014'
+	# train_ann_file = 'data/coco/annotations/instances_train2014.json'
+	# train_dt_file = 'data/output/detections_train2014_results.json'
+	train_data_dir = 'data/coco/images/val2014'
+	train_ann_file = 'data/coco/annotations/instances_minival2014.json'
+	train_dt_file = 'data/output/detections_minival2014_results.json'
 
 	# normalize transforms
 	normalize = transforms.Normalize(mean=[0.4485295, 0.4249905, 0.39198247],
@@ -43,7 +46,8 @@ class Config:
 	data_pin_memory = True
 
 	# action settings
-	act_delta = [.5, .25, .125, .0625, .03125, .015625, .008]
+	# act_delta = [.5, .25, .125, .0625, .03125, .015625, .008]
+	act_delta = [.125]
 	act_iou_thres = 0
 
 	@staticmethod

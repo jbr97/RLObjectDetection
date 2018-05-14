@@ -14,12 +14,13 @@ class Action:
 		self.wtrans = Identify if wtrans is None else wtrans
 
 		idx = 0
-		for i in range(4): # bbox dimention
+		# for i in range(4): # bbox dimention
+		for i in range(0):
 			for j in range(len(delta)):
 				self.actDeltas[idx, i] = delta[j] * alpha
 				idx += 1
-				self.actDeltas[idx, i] = -delta[j] * alpha
-				idx += 1
+				# self.actDeltas[idx, i] = -delta[j] * alpha
+				# idx += 1
 
 
 	def accuracy_per_box(self, preds, targets):
