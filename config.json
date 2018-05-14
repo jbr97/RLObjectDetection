@@ -25,5 +25,5 @@
   "gamma": 1,
   "pretrain": "data/RL_model_dump/pretrained/faster_rcnn_new.pth",
   "resume": "",
-  "selected_act": 4
+  "selected_act": 3
 }

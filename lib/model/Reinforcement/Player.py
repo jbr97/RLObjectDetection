@@ -346,9 +346,16 @@ class Player(object):
 
             pos_ind = np.where(np.array(old_iou) > 0.5)[0]
             q_value = q_value[pos_ind]
-            delta_iou = np.array(delta_iou)[pos_ind]
+            delta_iou2 = np.array(delta_iou2)[pos_ind]
 
             def compute_accuracy(diou, q_value, percentage):
+                assert len(diou) == len(q_value), "Unmatched in length."
+
+                nonzero_ind = np.where(np.array(diou) != 0)[0]
+
+                diou = np.array(diou)[nonzero_ind]
+                q_value = q_value[nonzero_ind]
+
                 thresh_ind = int(len(q_value)*(1-percentage))
                 reward_threshold = np.sort(q_value)[thresh_ind]
 
@@ -357,7 +364,7 @@ class Player(object):
                 q1 = q_value[selected_inds]
                 q2 = np.array(diou)[selected_inds]
 
-                dt_pos_neg = q1 > 0
+                dt_pos_neg = q1 > 0     # 0 算正样本还是负样本    算负样本，正确率就很高，算正样本，正确率就很低
                 gt_pos_neg = q2 > 0
 
                 
@@ -367,15 +374,15 @@ class Player(object):
                 return tp, tt
 
 
-            tp1, tt1 = compute_accuracy(delta_iou2, q_value, 0.01)
-            tp5, tt5 = compute_accuracy(delta_iou2, q_value, 0.05)
-            tp10, tt10 = compute_accuracy(delta_iou2, q_value, 0.10)
+            tp1, tt1 = compute_accuracy(delta_iou2, q_value, 0.1)
+            tp5, tt5 = compute_accuracy(delta_iou2, q_value, 0.5)
+            tp10, tt10 = compute_accuracy(delta_iou2, q_value, 1.0)
 
             tt1 = 1 if tt1 == 0 else tt1
             tt5 = 1 if tt5 == 0 else tt5
             tt10 = 1 if tt10 == 0 else tt10
                 
-            print('batch accuracy 1%: {:.3f}  batch accuracy 5%: {:.3f}  batch accuracy 10%: {:.3f}'.format(tp1/tt1, tp5/tt5, tp10/tt10))
+            print('batch accuracy 10%: {:.3f}  batch accuracy 50%: {:.3f}  batch accuracy 100%: {:.3f}'.format(tp1/tt1, tp5/tt5, tp10/tt10))
 
 
             # total_accuracy = (total_accuracy * i + accuracy) / (i+1)
@@ -418,9 +425,9 @@ class Player(object):
         logger.info("Acc(>0): {0} Acc(>=0): {1}".format(tot_g_0 / tot, tot_ge_0 / tot))
 
         print('----------------------------------')
-        print('total accuracy 1%:', total_tp[0] / total_tt[0])
-        print('total accuracy 5%:', total_tp[1] / total_tt[1])
-        print('total accuracy 10%:', total_tp[2] / total_tt[2])
+        print('total accuracy 10%:', total_tp[0] / total_tt[0])
+        print('total accuracy 50%:', total_tp[1] / total_tt[1])
+        print('total accuracy 100%:', total_tp[2] / total_tt[2])
         print('----------------------------------')
         
         
@@ -708,15 +715,32 @@ class Player(object):
         inds = np.where(np.array(old_iou) > 0.5)[0]
 
         new_bboxes = bboxes[inds, :]
-        new_actions = np.array(actions)[inds].tolist()
+        new_actions = np.array(actions)[inds]
         new_transform_bboxes = transform_bboxes[inds, :]
-        new_delta_iou = np.array(delta_iou)[inds].tolist()
+        new_delta_iou = np.array(delta_iou)[inds]
+
 
         num_pos_diou = len([x for x in new_delta_iou if x > 0])
         num_neg_diou = len([x for x in new_delta_iou if x < 0])
         num_zero_diou = len([x for x in new_delta_iou if x == 0])
 
         logger.info('num of diou pos:neg:zero {} : {} : {}'.format(num_pos_diou, num_neg_diou, num_zero_diou))
+
+        # 挑选正样本，负样本，零样本，使之平衡
+        pos_inds = np.where(new_delta_iou > 0)[0]
+        neg_inds = np.where(new_delta_iou < 0)[0]
+        zero_inds = np.where(new_delta_iou == 0)[0]
+
+        num_pos = min(len(pos_inds), len(neg_inds), len(zero_inds))
+        if num_pos != 0:
+            neg_inds = np.random.choice(neg_inds, num_pos, False)
+            zero_inds = np.random.choice(zero_inds, num_pos, False)
+
+            res_ind = np.concatenate([pos_inds, neg_inds, zero_inds])
+            new_bboxes = new_bboxes[res_ind]
+            new_actions = new_actions[res_ind].tolist()
+            new_transform_bboxes = new_transform_bboxes[res_ind]
+            new_delta_iou = new_delta_iou[res_ind]
 
         return new_bboxes, new_actions, new_transform_bboxes, new_delta_iou
 
