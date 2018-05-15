@@ -81,12 +81,21 @@ def main():
 		bbox_action=bbox_action,
 		transform_fn=transform_fn,
 		normalize_fn=normalize_fn)
-	dataloader = COCODataLoader(
-		dataset, 
-		batch_size=args.batch_size, 
-		shuffle=config.data_shuffle, 
-		num_workers=config.num_workers,
-		pin_memory=config.data_pin_memory)
+	if phase == 'train':
+		dataloader = COCODataLoader(
+			dataset, 
+			batch_size=args.batch_size, 
+			shuffle=config.data_shuffle, 
+			num_workers=config.num_workers,
+			pin_memory=config.data_pin_memory)
+	else:
+		dataloader = COCODataLoader(
+			dataset, 
+			batch_size=args.batch_size, 
+			shuffle=config.data_shuffle, 
+			num_workers=config.num_workers,
+			pin_memory=config.data_pin_memory,
+			istrain=False)
 
 	# create model
 	model = resnet101(
@@ -204,8 +213,9 @@ def Evaluate(model, val_loader, bbox_action):
 		data_time.add(time.time() - start)
 
 		# forward
-		pred, loss, _ = model(img_var, bboxes, cls_ids, targets, weights)
-		loss = loss.mean()
+		# pred, loss, _ = model(img_var, bboxes, cls_ids, targets, weights)
+		# loss = loss.mean()
+		pred, loss = model(img_var, bboxes, cls_ids, targets, weights)
 
 		# get output boxes
 		bboxes = inp[1].numpy()
