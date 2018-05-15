@@ -140,7 +140,8 @@ class ResNet(nn.Module):
 				m.bias.data.zero_()
 				m.weight.data.normal_(0, 0.01)
 
-		self.criterion = nn.MultiMarginLoss()
+		# self.criterion = nn.MultiMarginLoss()
+		self.criterion = nn.CrossEntropyLoss()
 
 	def freeze_layer(self):
 		self._freeze_module(self.conv1)
@@ -218,7 +219,8 @@ class ResNet(nn.Module):
 		# loss, noweight_loss = self._weighted_mse_loss(pred, targets, weights)
 		# return pred, loss, noweight_loss
 
-		loss = self._multi_margin_loss(pred, targets, weights)
+		# loss = self._multi_margin_loss(pred, targets, weights)
+		loss = self._cross_entropy_loss(pred, targets, weights)
 		return pred, loss
 
 	def _weighted_mse_loss(self, inp, targets, weights):
@@ -229,6 +231,10 @@ class ResNet(nn.Module):
 
 	def _multi_margin_loss(self, inp, targets, weights):
 		loss = self.criterion(inp, targets)
+		return loss
+
+	def _cross_entropy_loss(self, inp, targets, weights):
+		loss = self.criterion(inp. targets)
 		return loss
 
 def resnet18(pretrained=False):

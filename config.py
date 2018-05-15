@@ -8,7 +8,7 @@ class Config:
 	num_classes = 80
 	pretrained_model = 'data/RL_model_dump/pretrained/faster_rcnn_new.pth'
 	# save_directory
-	save_dir = 'multimargin.act1.step1.weight_no/'
+	save_dir = 'crossentropy.act1.step1.weight_no.panda3/'
 
 	# train settings
 	train_img_short = [800]

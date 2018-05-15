@@ -111,14 +111,14 @@ class COCODataLoader(DataLoader):
                         len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6)))
             #assert n_minind >= 5, 'The num of samples is too small.'
 
-            n_minind = 5
-            n_pick0 = 5 if len(ind0) >= n_minind else len(ind0)
-            n_pick1 = 5 if len(ind1) >= n_minind else len(ind1)
-            n_pick2 = 5 if len(ind2) >= n_minind else len(ind2)
-            n_pick3 = 5 if len(ind3) >= n_minind else len(ind3)
-            n_pick4 = 5 if len(ind4) >= n_minind else len(ind4)
-            n_pick5 = 5 if len(ind5) >= n_minind else len(ind5)
-            n_pick6 = 5 if len(ind6) >= n_minind else len(ind6)
+            n_minind = 10
+            n_pick0 = n_minind if len(ind0) >= n_minind else len(ind0)
+            n_pick1 = n_minind if len(ind1) >= n_minind else len(ind1)
+            n_pick2 = n_minind if len(ind2) >= n_minind else len(ind2)
+            n_pick3 = n_minind if len(ind3) >= n_minind else len(ind3)
+            n_pick4 = n_minind if len(ind4) >= n_minind else len(ind4)
+            n_pick5 = n_minind if len(ind5) >= n_minind else len(ind5)
+            n_pick6 = n_minind if len(ind6) >= n_minind else len(ind6)
 
 
             if n_pick0 == 0:
