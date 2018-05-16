@@ -65,4 +65,5 @@ class Config:
 			self.data_dir = self.test_data_dir
 			self.ann_file = self.test_ann_file
 			self.dt_file = self.test_dt_file
-
+			self.data_shuffle = False
+			

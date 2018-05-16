@@ -42,6 +42,14 @@ class Action:
 		n_bboxes, n_bins = preds.shape
 		assert n_bboxes == targets.shape[0] and n_bins == 7
 
+		def softmax(x):
+			assert x.ndim == 1
+			e_x = np.exp(x - np.max(x))
+			return e_x / e_x.sum() 
+
+		for i in range(n_bboxes):
+			preds[i, :] = softmax(preds[i, :])
+
 		preds_maxscore = np.max(preds, axis=1)
 		n_top = int(n_bboxes*percentage)
 		inds = np.argsort(preds_maxscore)[-n_top:]
@@ -172,12 +180,20 @@ class Action:
 		n_bboxes, n_bins = preds.shape
 		assert n_bboxes == targets.shape[0] and n_bins == 7 and bboxes.shape[0] == n_bboxes
 
+		def softmax(x):
+			assert x.ndim == 1
+			e_x = np.exp(x - np.max(x))
+			return e_x / e_x.sum() 
+
+		for i in range(n_bboxes):
+			preds[i, :] = softmax(preds[i, :])
+
 		preds_maxscore = np.max(preds, axis=1)
 		n_top = int(n_bboxes*percentage)
 		inds = np.argsort(preds_maxscore)[-n_top:]
 		for i in inds:
 			ind = np.argmax(preds[i, :])
-			if ind > 3:
+			if ind < 3:			# (1, inf), (0.5, 1], (0, 0.5], 0, [-0.5, 0), [-0.5, -0.1), (-inf, -0.1]
 				bbox = bboxes[i, :]
 				assert len(self.actDeltas[0]) == 4 and len(bbox) == 4
 				_, _, w, h = bbox

@@ -261,9 +261,6 @@ def Evaluate(model, val_loader, bbox_action):
 			all_preds = np.concatenate([all_preds, preds.reshape(-1, 7)], axis=0)
 			all_targets = np.concatenate([all_targets, targets.reshape(-1)], axis=0)
 
-		# get new boxes
-		#newboxes, preck = bbox_action.move_from_act(bboxes[:,:,1:5], preds, targets, maxk=1)
-		#bboxes[:,:,1:5] = newboxes
 
 		# generate detection results
 		bboxes = bboxes.reshape(-1, bboxes.shape[-1]).astype(float)
