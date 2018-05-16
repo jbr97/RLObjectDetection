@@ -14,7 +14,7 @@ class Config:
 	train_img_short = [800]
 	train_img_size = 1200
 	train_flip = False
-	train_max_epoch = 25
+	train_max_epoch = 100
 	train_lr_decay = [18, 22]
 	# train_data_dir = 'data/coco/images/train2014'
 	# train_ann_file = 'data/coco/annotations/instances_train2014.json'
@@ -38,7 +38,7 @@ class Config:
 	# SGD settings
 	momentum = 0.9
 	weight_decay = 0.0001
-	learning_rate = 0.001
+	learning_rate = 0.01
 
 	# data_loader settings
 	num_workers = 6

@@ -234,7 +234,7 @@ class ResNet(nn.Module):
 		return loss
 
 	def _cross_entropy_loss(self, inp, targets, weights):
-		loss = self.criterion(inp. targets)
+		loss = self.criterion(inp, targets)
 		return loss
 
 def resnet18(pretrained=False):

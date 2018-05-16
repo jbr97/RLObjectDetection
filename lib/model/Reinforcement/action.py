@@ -29,15 +29,30 @@ class Action:
 		preds: np.array, n_bboxes x 7
 		targets: np.array, n_bboxes
 		"""
+		# n_bboxes, n_bins = preds.shape
+		# assert n_bboxes == targets.shape[0] and n_bins == 7
+
+		# n_top = int(n_bboxes * percentage)
+		# cnt_correct = 0
+		# for i in range(7):
+		# 	ind = np.argsort(preds[:, i])[-n_top:]
+		# 	cnt_correct += sum(targets[ind] == i)
+		# return cnt_correct * 100. / n_top / 7 
+
 		n_bboxes, n_bins = preds.shape
 		assert n_bboxes == targets.shape[0] and n_bins == 7
 
-		n_top = int(n_bboxes * percentage)
+		preds_maxscore = np.max(preds, axis=1)
+		n_top = int(n_bboxes*percentage)
+		inds = np.argsort(preds_maxscore)[-n_top:]
 		cnt_correct = 0
-		for i in range(7):
-			ind = np.argsort(preds[:, i])[-n_top:]
-			cnt_correct += sum(targets[ind] == i)
-		return cnt_correct * 100. / n_top / 7 
+		for i in inds:
+			ind = np.argmax(preds[i, :])
+			if (targets[i] == 3 and ind == 3) or (targets[i] > 3 and ind > 3) or (targets[i] < 3 and ind < 3):
+				cnt_correct += 1
+		return cnt_correct*100./n_top
+
+
 
 	def accuracy_per_box(self, preds, targets):
 		"""
