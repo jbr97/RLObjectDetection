@@ -16,12 +16,12 @@ class Config:
 	train_flip = False
 	train_max_epoch = 100
 	train_lr_decay = [18, 22]
-	# train_data_dir = 'data/coco/images/train2014'
-	# train_ann_file = 'data/coco/annotations/instances_train2014.json'
-	# train_dt_file = 'data/output/detections_train2014_results.json'
-	train_data_dir = 'data/coco/images/val2014'
-	train_ann_file = 'data/coco/annotations/instances_minival2014.json'
-	train_dt_file = 'data/output/detections_minival2014_results.json'
+	train_data_dir = 'data/coco/images/train2014'
+	train_ann_file = 'data/coco/annotations/instances_train2014.json'
+	train_dt_file = 'data/output/detections_train2014_results.json'
+	# train_data_dir = 'data/coco/images/val2014'
+	# train_ann_file = 'data/coco/annotations/instances_minival2014.json'
+	# train_dt_file = 'data/output/detections_minival2014_results.json'
 
 	# normalize transforms
 	normalize = transforms.Normalize(mean=[0.4485295, 0.4249905, 0.39198247],
@@ -66,4 +66,3 @@ class Config:
 			self.ann_file = self.test_ann_file
 			self.dt_file = self.test_dt_file
 			self.data_shuffle = False
-			
