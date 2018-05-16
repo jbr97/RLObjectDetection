@@ -103,10 +103,12 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-	def __init__(self, block, layers, num_acts=1):
+	def __init__(self, block, layers, num_acts=1, num_classes=1):
 		self.inplanes = 64
 		self.num_acts = num_acts
+		self.num_classes = num_classes
 		super(ResNet, self).__init__()
+
 		self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
 					 bias=False)
 		self.bn1 = nn.BatchNorm2d(64)
@@ -115,14 +117,15 @@ class ResNet(nn.Module):
 		self.layer1 = self._make_layer(block, 64, layers[0])
 		self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
 		self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-		# self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+		self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 		# it is slightly better whereas slower to set stride = 1
-		self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
+		#self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
 
 		self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
-		self.fc8 = nn.Linear(2048, 4096)
-		self.fc = nn.Linear(4096, self.num_acts)
+		#self.fc8 = nn.Linear(2048, 4096)
+		#self.fc = nn.Linear(2048, num_acts * num_classes)
+		self.linears = nn.ModuleList([nn.Linear(4096, num_classes) for i in range(num_acts)])
 
 		for m in self.modules():
 			if isinstance(m, nn.Conv2d):
@@ -163,40 +166,100 @@ class ResNet(nn.Module):
 
 		return nn.Sequential(*layers)
 
-	def forward(self, img, bboxes, targets, weights):
+	def forward(self, img, bboxes, new_bboxes, cls_ids, targets, weights, input_feature=None):
+		# b * nb * na * 5 -> na * b * nb * 5
+		new_bboxes = new_bboxes.transpose(0,2).transpose(1,2).contiguous().view(-1,5)
+		#bboxes = bboxes.expand_as(new_bboxes).view(-1, 5)
+		# b * nb * 5
 		bboxes = bboxes.view(-1, 5)
-		targets = targets.view(-1, self.num_acts)
-		weights = weights.view(-1, self.num_acts)
+		#new_bboxes = new_bboxes.view(-1, 5)
+		batch_size = bboxes.size(0)
 
-		x = self.conv1(img)
-		x = self.bn1(x)
-		x = self.relu(x)
-		x = self.maxpool(x)
+		cls_ids = cls_ids.view(batch_size)
+		targets = targets.view(batch_size, self.num_acts)
+		weights = weights.view(batch_size, self.num_acts)
 
-		x = self.layer1(x)
-		x = self.layer2(x)
-		x = self.layer3(x)
+		if input_feature is None:
+			x = self.conv1(img)
+			x = self.bn1(x)
+			x = self.relu(x)
+			x = self.maxpool(x)
 
-		roi_feat = self.RCNN_roi_align(x, bboxes)
+			x = self.layer1(x)
+			x = self.layer2(x)
+			x = self.layer3(x)
+			ret_feat = x
+		else:
+			x = input_feature
+		
+		cat_boxes = torch.cat((bboxes, new_bboxes), 0)
+		# feature: (na * b * nb, 1024, 7, 7)
+		x = self.RCNN_roi_align(x, cat_boxes)
+		'''
+		# feature: (na * b * nb, 1024, 7, 7)
+		act_feat = self.RCNN_roi_align(x, new_bboxes)
+		# feature: (b * nb, 1024, 7, 7)
+		box_feat = self.RCNN_roi_align(x, bboxes)
+		# feature: ((1+na) * b * nb, 1024, 7, 7)
+		x = torch.cat((box_feat, act_feat), 0)
+		'''
 
 		# head to tail
-		pooled_feat = self.layer4(roi_feat)
+		'''
+		feat = self.layer4(x[:batch_size])
+		feat = feat.mean(3)
+		feat = feat.mean(2)
+		for i in range(self.num_acts):
+			s, e = batch_size * (i+1), batch_size * (i+2)
+			tmp = self.layer4(x[s:e])
+			tmp = tmp.mean(3)
+			tmp = tmp.mean(2)
+			feat = torch.cat((feat, tmp), 0)
+		x = feat
+		'''
+		x = self.layer4(x)
 		# avg pool
-		pooled_feat = pooled_feat.mean(3)
-		pooled_feat = pooled_feat.mean(2)
+		x = x.mean(3)
+		x = x.mean(2)
+		
+		#pred = self.fc(x)
+		# with shape (batch*num_classes, num_acts)
+		#pred = pred.reshape(-1, self.num_acts)
+		cls_ids += torch.range(0, self.num_classes * batch_size - 1, self.num_classes).cuda()
+		# index select with class indices
+		cls_ids = cls_ids.type(torch.cuda.LongTensor)
+		# feature: ((1+na) * b * nb, 2048) -> (1+na, b*nb, 2048)
+		x = x.view(-1, batch_size, 2048)
 
-		x = self.fc8(pooled_feat)
-		x = self.relu(x)
-		pred = self.fc(x)
-
-		loss, noweight_loss = self._weighted_mse_loss(pred, targets, weights)
-		return pred, loss, noweight_loss
+		loss = None
+		pred = []
+		targets = targets.transpose(1, 0)
+		weights = weights.transpose(1, 0)
+		for i, fc in enumerate(self.linears):
+			# 2 * (b*nb, 2048) -> (b*nb, 4096)
+			in_feat = torch.cat((x[0], x[i+1]), 1)
+			# pred: (b*nb, num_classes) -> (batch_size * num_classes)
+			temp_pred = fc(in_feat).reshape(-1)
+			pred.append(temp_pred.index_select(0, cls_ids))
+			if loss is None:
+				loss = self._weighted_mse_loss(pred[i], targets[i], weights[i])
+			else:
+				loss += self._weighted_mse_loss(pred[i], targets[i], weights[i])
+		loss /= self.num_acts
+		
+		#pred = torch.index_select(pred, 0, cls_ids)
+		# pred, targets, weights: (batch, num_acts)
+		#loss, noweight_loss = self._weighted_mse_loss(pred, targets, weights)
+		if input_feature is None:
+			return pred, loss, ret_feat
+		else:
+			return pred, loss#, noweight_loss
 
 	def _weighted_mse_loss(self, inp, targets, weights):
 		# TODO move this function
 		noweight_loss = (inp - targets) ** 2
 		loss = noweight_loss * (weights.expand_as(noweight_loss))
-		return loss.mean(), noweight_loss.mean()
+		return loss.mean()#, noweight_loss.mean()
 
 def resnet18(pretrained=False):
 	"""Constructs a ResNet-18 model.
@@ -231,12 +294,14 @@ def resnet50(pretrained=False):
 	return model
 
 
-def resnet101(pretrained=False, num_acts=1):
+def resnet101(pretrained=False, num_acts=1, num_classes=1):
 	"""Constructs a ResNet-101 model.
 	Args:
 	pretrained (bool): If True, returns a model pre-trained on ImageNet
 	"""
-	model = ResNet(Bottleneck, [3, 4, 23, 3], num_acts=num_acts)
+	model = ResNet(Bottleneck, [3, 4, 23, 3], 
+		num_acts=num_acts, 
+		num_classes=num_classes)
 	if pretrained:
 		model.load_state_dict(model_zoo.load_url(model_urls['resnet101']))
 	return model

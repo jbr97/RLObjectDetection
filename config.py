@@ -4,17 +4,19 @@ import numpy as np
 import torchvision.transforms as transforms
 
 class Config:
-	
+
+	num_classes = 80
 	pretrained_model = 'data/RL_model_dump/pretrained/faster_rcnn_new.pth'
 	# save_directory
-	save_dir = 'data/RL_model_dump/RL_linear.act7.step1.weight_globalnorm_exp/'
+	#save_dir = 'data/RL_model_dump/RL_linear.act7.step1.weight_globalnorm_exp.openlayer4.multiclass2/'
+	save_dir = 'data/RL_model_dump/RL_linear.act7.step1.weight_globalnorm_exp.context.openlayer4.tremble2.removeneg/'
 
 	# train settings
 	train_img_short = [800]
 	train_img_size = 1200
 	train_flip = False
-	train_max_epoch = 15
-	train_lr_decay = [8, 12]
+	train_max_epoch = 10
+	train_lr_decay = [6, 8]
 	train_data_dir = 'data/coco/images/train2014'
 	train_ann_file = 'data/coco/annotations/instances_train2014.json'
 	train_dt_file = 'data/output/detections_train2014_results.json'
@@ -42,13 +44,13 @@ class Config:
 	data_pin_memory = True
 
 	# action settings
-	act_delta = [.5, .25, .125, .0625, .03125, .015625, .008]
+	act_delta = [.1]
 	act_iou_thres = 0
 
 	@staticmethod
 	def act_wtrans(x):
 		from math import fabs, sqrt, exp
-		return exp(fabs(x))
+		return sqrt(fabs(x)) * 10.
 
 	def __init__(self, phase='train'):
 		self.phase = phase
@@ -57,7 +59,7 @@ class Config:
 			self.ann_file = self.train_ann_file
 			self.dt_file = self.train_dt_file
 		else:
-			self.data_dir = self.test_data_dir
-			self.ann_file = self.test_ann_file
-			self.dt_file = self.test_dt_file
+			self.data_dir = self.train_data_dir
+			self.ann_file = self.train_ann_file
+			self.dt_file = self.train_dt_file
 

@@ -6,6 +6,8 @@ import _init_paths
 import os
 import sys
 import time
+import json
+import math
 import logging
 import argparse
 import numpy as np
@@ -62,34 +64,56 @@ def main():
 	logger.info('Now using phase: ' + phase)
 
 	# initialize config
-	config = Config(phase=phase)
+	config = Config()
 
 	# create actions
 	bbox_action = Action(delta=config.act_delta,
 						iou_thres=config.act_iou_thres,
 						wtrans=config.act_wtrans)
-	# create data_loader
+
+	# create train_loader
 	normalize_fn = config.normalize
 	if phase == 'train':
-		transform_fn = COCOTransform(config.train_img_short, config.train_img_size, flip=config.train_flip) 
+		train_transform_fn = COCOTransform(config.train_img_short, config.train_img_size, flip=config.train_flip) 
+		train_dataset = COCODataset(
+			config.train_data_dir, 
+			config.train_ann_file, 
+			config.train_dt_file,
+			bbox_action=bbox_action,
+			transform_fn=train_transform_fn,
+			normalize_fn=normalize_fn,
+			static_file='log/train_static.npy',
+			phase=phase)
+		train_loader = COCODataLoader(
+			train_dataset, 
+			batch_size=args.batch_size, 
+			shuffle=config.data_shuffle, 
+			num_workers=config.num_workers,
+			pin_memory=config.data_pin_memory)
 	else:
-		transform_fn = COCOTransform(config.test_img_short, config.test_img_size, flip=config.test_flip)
-	dataset = COCODataset(
-		config.data_dir, 
-		config.ann_file, 
-		config.dt_file,
-		bbox_action=bbox_action,
-		transform_fn=transform_fn,
-		normalize_fn=normalize_fn)
-	dataloader = COCODataLoader(
-		dataset, 
-		batch_size=args.batch_size, 
-		shuffle=config.data_shuffle, 
-		num_workers=config.num_workers,
-		pin_memory=config.data_pin_memory)
+		# create test_loader
+		test_transform_fn = COCOTransform(config.test_img_short, config.test_img_size, flip=config.test_flip)
+		test_dataset = COCODataset(
+			config.test_data_dir, 
+			config.test_ann_file, 
+			config.test_dt_file,
+			bbox_action=bbox_action,
+			transform_fn=test_transform_fn,
+			normalize_fn=normalize_fn,
+			static_file='log/test_static.npy',
+			phase=phase)
+		test_loader = COCODataLoader(
+			test_dataset, 
+			batch_size=args.batch_size, 
+			shuffle=config.data_shuffle, 
+			num_workers=config.num_workers,
+			pin_memory=config.data_pin_memory)
+		cls2cat = test_dataset.cls2cat
 
 	# create model
-	model = resnet101(num_acts=bbox_action.num_acts)
+	model = resnet101(
+		num_acts=bbox_action.num_acts, 
+		num_classes=config.num_classes)
 	logger.info(model)
 
 	# load pretrained model
@@ -137,7 +161,7 @@ def main():
 				learning_rate=config.learning_rate, 
 				epochs=config.train_lr_decay)
 			#
-			Train(epoch, model, dataloader, optimizer)
+			Train(epoch, model, train_loader, optimizer)
 			Savecheckpoint(save_dir, epoch, model)
 	else:
 		resume = save_dir + 'epoch_{}.pth'.format(args.epoch)
@@ -146,12 +170,12 @@ def main():
 		start_epoch = checkpoint['epoch']
 		model.load_state_dict(checkpoint['state_dict'], strict=False)
 		#
-		dt_boxes = Evaluate(model, dataloader, bbox_action)
-		ensure_dir(os.path.join(args.save_dir, 'jsons'))
-		filename = 'detections_{}_epoch{}_results.json'.format((args.phase, start_epoch))
-		filename = os.path.join(args.save_dir, 'jsons', filename)
+		dt_boxes = Evaluate(model, test_loader, bbox_action, cls2cat)
+		ensure_dir(os.path.join(save_dir, 'jsons'))
+		filename = 'detections_{}_epoch{}_results.json'.format(phase, start_epoch)
+		filename = os.path.join(save_dir, 'jsons', filename)
 		json.dump(dt_boxes, open(filename, 'w'))
-		cocoval(args.ann_file, filename)
+		cocoval(config.test_ann_file, filename)
 		
 	logger.info('Exit without error.')
 
@@ -172,48 +196,110 @@ def Savecheckpoint(save_dir, epoch, model):
 		os.path.join(save_dir, 'epoch_%d.pth' % (epoch + 1)) )
 
 
-def Evaluate(model, val_loader, bbox_action):
+def Evaluate(model, val_loader, bbox_action, cls2cat):
 	global args, config
 	logger = logging.getLogger('global')
 
 	losses = AveMeter(100)
 	batch_time = AveMeter(100)
 	data_time = AveMeter(100)
-	#Prec1 = AveMeter(len(val_loader))
-	#Prec5 = AveMeter(len(val_loader))
-	Preck = AveMeter(len(val_loader))
-	dt_boxes = []
+	Prec_per_box = AveMeter(len(val_loader))
+	Prec1_per_img = AveMeter(len(val_loader))
+	Prec5_per_img = AveMeter(len(val_loader))
+	Prec10_per_img = AveMeter(len(val_loader))
+	Prec1_per_act = AveMeter(bbox_action.num_acts)
+	Prec5_per_act = AveMeter(bbox_action.num_acts)
+	Prec10_per_act = AveMeter(bbox_action.num_acts)
+	delta_ious = AveMeter(100)
 	model.eval()
 
 	start = time.time()
 	for i, inp in enumerate(val_loader):
 		# input data processing
 		img_var = inp[0].cuda(async=True)
+		inp1 = inp[1]
+		inp2 = inp[2]
+		batch_size, num_boxes, _ = inp1.numpy().shape
+		'''
 		bboxes = Variable(inp[1][:,:,:5].contiguous()).cuda(async=True)
-		targets = Variable(inp[2][:,:,:,1].contiguous()).cuda(async=True)
-		weights = Variable(inp[2][:,:,:,2].contiguous()).cuda(async=True)
+		cls_ids = Variable(inp[1][:,:,6].contiguous()).cuda(async=True)
+		new_bboxes = inp2[:,s:e,:,:5].contiguous().cuda(async=True)
+		targets = Variable(inp[2][:,:,:,-2].contiguous()).cuda(async=True)
+		weights = Variable(inp[2][:,:,:,-1].contiguous()).cuda(async=True)
+		'''
 		data_time.add(time.time() - start)
 
 		# forward
-		pred, loss, _ = model(img_var, bboxes, targets, weights)
-		loss = loss.mean()
+		#pred, loss, _ = model(img_var, bboxes, cls_ids, targets, weights)
+		#loss = loss.mean()
+
+		preds = np.zeros((batch_size, num_boxes, bbox_action.num_acts))
+		pnum = 100 // bbox_action.num_acts
+		iters = math.ceil(num_boxes / pnum)
+		#logger.info(iters)
+		input_feature = None
+		for this_iter in range(iters):
+			s = this_iter * pnum
+			e = min((this_iter+1) * pnum, num_boxes)
+
+			bboxes = inp1[:,s:e,:5].contiguous().cuda(async=True)
+			cls_ids = inp1[:,s:e,6].contiguous().cuda(async=True)
+			new_bboxes = inp2[:,s:e,:,:5].contiguous().cuda(async=True)
+			targets = inp2[:,s:e,:,-2].contiguous().cuda(async=True)
+			weights = inp2[:,s:e,:,-1].contiguous().cuda(async=True)
+			
+			#forward
+			if input_feature is None:
+				pred, loss, input_feature = model(img_var, bboxes, new_bboxes, cls_ids, targets, weights)
+			else:
+				pred, loss = model(img_var, bboxes, new_bboxes, cls_ids, targets, weights, input_feature)
+			loss = loss.mean()
+			for act_id in range(bbox_action.num_acts):
+				preds[:,s:e,act_id] = pred[act_id].cpu().data.numpy()
+
+			losses.add(loss.item())
+			logger.info('this iter:{}, loss: {}'.format(this_iter, loss.item()))
 
 		# get output boxes
-		bboxes = inp[1].numpy()
+		bboxes = inp1.numpy()
 		bboxes[:, :, 3] = bboxes[:, :, 3] - bboxes[:, :, 1]
 		bboxes[:, :, 4] = bboxes[:, :, 4] - bboxes[:, :, 2]
-		batch_size = bboxes.shape[0]
 
 		# get output datas
-		preds = pred.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
-		targets = targets.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
+		#for act_id in range(bbox_action.num_acts):
+			#preds[:,:,act_id] = pred[act_id].cpu().data.numpy().reshape(batch_size, num_boxes)
+		#preds = pred.cpu().data.numpy().reshape(batch_size, -1, bbox_action.num_acts)
+		targets = inp2[:,:,:,-2].contiguous().numpy().reshape(batch_size, -1, bbox_action.num_acts)
+		weights = inp2[:,:,:,-1].contiguous().numpy().reshape(batch_size, -1, bbox_action.num_acts)
+
+		# get precs
+		prec_per_box = bbox_action.accuracy_per_box(preds, targets)
+		prec1_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=1)
+		prec5_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=5)
+		prec10_per_img = bbox_action.accuracy_per_img(preds, targets, maxk=10)
+		Prec_per_box.add(prec_per_box)
+		Prec1_per_img.add(prec1_per_img.mean())
+		Prec5_per_img.add(prec5_per_img.mean())
+		Prec10_per_img.add(prec10_per_img.mean())
+
+		# collect preds & targets
+		if i == 0:
+			dt_boxes = []
+			all_preds = preds.reshape(-1, bbox_action.num_acts)
+			all_targets = targets.reshape(-1, bbox_action.num_acts)
+		else:
+			all_preds = np.concatenate([all_preds, preds.reshape(-1, bbox_action.num_acts)], axis=0)
+			all_targets = np.concatenate([all_targets, targets.reshape(-1, bbox_action.num_acts)], axis=0)
 
 		# get new boxes
-		newboxes, preck = bbox_action.move_from_act(bboxes[:,:,1:5], preds, targets, maxk=1)
+		newboxes = bbox_action.move_from_act(bboxes[:,:,1:5], preds, targets, maxk=10)
+		#newboxes, delta_iou = bbox_action.move_from_weight(bboxes[:,:,1:5], weights, targets, maxk=10)
+		#delta_ious.add(delta_iou)
+		#logger.info(delta_ious.avg)
 		bboxes[:,:,1:5] = newboxes
-		bboxes = bboxes.reshape(-1, bboxes.shape[-1]).astype(float)
 
 		# generate detection results
+		bboxes = bboxes.reshape(-1, bboxes.shape[-1]).astype(float)
 		im_infos = inp[3]
 		for j, bbox in enumerate(bboxes):
 			bid = int(bbox[0])
@@ -223,43 +309,52 @@ def Evaluate(model, val_loader, bbox_action):
 			dtbox = {
 				'bbox': [float(bbox[1]), float(bbox[2]), float(bbox[3]), float(bbox[4])],
 				'score': float(bbox[5]),
-				'category_id': int(bbox[6]),
+				'category_id': int(cls2cat[int(bbox[6])]),
 				'image_id': int(bbox[7])
 			}
-			'''
-			dtbox = {
-				'bbox': [float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])],
-				'score': float(bbox[4]),
-				'category_id': int(bbox[5]),
-				'image_id': int(bbox[6])
-			}
-			'''
 			dt_boxes.append(dtbox)
 
 		losses.add(loss.item())
-		#Prec1.add(accuracy(preds, targets, 1))
-		Preck.add(preck)
 		batch_time.add(time.time() - start)
-		if i % args.log_interval == 0:
+		if i % args.log_interval == 0 or i == len(val_loader)-1:
 			logger.info('Test: [{0}/{1}]\t'
 						'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
 						'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
 						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-						#'Prec1 {Prec1.val:.3f} ({Prec1.avg:.3f})\t'
-						'Preck {Preck.val:.3f} ({Preck.avg:.3f})\t'
-						#'Prec5 {Prec5.val:.3f} ({Prec5.avg:.3f})\t'
-						.format(i, len(val_loader),
+						'Prec_per_box {Prec_per_box.val:.3f} ({Prec_per_box.avg:.3f})\t'
+						'Prec1_per_img {Prec1_per_img.val:.3f} ({Prec1_per_img.avg:.3f})\t'
+						'Prec5_per_img {Prec5_per_img.val:.3f} ({Prec5_per_img.avg:.3f})\t'
+						'Prec10_per_img {Prec10_per_img.val:.3f} ({Prec10_per_img.avg:.3f})\t'.format(
+							i, len(val_loader),
 							batch_time=batch_time,
 							data_time=data_time,
 							losses=losses,
-							#Prec1=Prec1,
-							#Prec5=Prec5,
-							Preck=Preck)
+							Prec_per_box=Prec_per_box, 
+							Prec1_per_img=Prec1_per_img, 
+							Prec5_per_img=Prec5_per_img, 
+							Prec10_per_img=Prec10_per_img)
 						)
 		start = time.time()
-	#logger.info('Prec1: %.3f Prec5: %.3f' % (Prec1.avg, Prec5.avg))
-	logger.info('Preck: %.3f' % (Preck.avg))
-	return dtboxes
+
+	prec1_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.01)
+	prec5_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.05)
+	prec10_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.1)
+
+	for act_id in range(bbox_action.num_acts):
+		Prec1_per_act.add(prec1_per_act[act_id])
+		Prec5_per_act.add(prec5_per_act[act_id])
+		Prec10_per_act.add(prec10_per_act[act_id])
+		logger.info('Action id: [{0}]\t'
+					'Action Delta: {1}\t'
+					'Prec1_per_act {Prec1_per_act.val:.3f} ({Prec1_per_act.avg:.3f})\t'
+					'Prec5_per_act {Prec5_per_act.val:.3f} ({Prec5_per_act.avg:.3f})\t'
+					'Prec10_per_act {Prec10_per_act.val:.3f} ({Prec10_per_act.avg:.3f})\t'.format(
+						act_id, str(bbox_action.actDeltas[act_id]),
+						Prec1_per_act=Prec1_per_act,
+						Prec5_per_act=Prec5_per_act,
+						Prec10_per_act=Prec10_per_act)
+					)
+	return dt_boxes
 
 
 def Train(epoch, model, train_loader, optimizer):
@@ -276,34 +371,67 @@ def Train(epoch, model, train_loader, optimizer):
 	for i, inp in enumerate(train_loader):
 		# input data processing
 		img_var = inp[0].cuda(async=True)
-		bboxes = Variable(inp[1][:,:,:5].contiguous()).cuda(async=True)
-		targets = Variable(inp[2][:,:,:,1].contiguous()).cuda(async=True)
-		weights = Variable(inp[2][:,:,:,2].contiguous()).cuda(async=True)
+		inp1 = inp[1]
+		inp2 = inp[2]
+		'''
+		bboxes = inp[1][:,:,:5]
+		cls_ids = inp[1][:,:,6]
+		new_bboxes = inp[2][:,:,:,:5]
+		targets = inp[2][:,:,:,-2]
+		weights = inp[2][:,:,:,-1]
+		'''
 		data_time.add(time.time() - start)
+		batch_size, num_boxes, num_acts, _ = inp2.shape
+		#logger.info(str((inp1.shape, inp2.shape)))
 
 		# forward
-		pred, loss, noweight_loss = model(img_var, bboxes, targets, weights)
-		loss, noweight_loss = loss.mean(), noweight_loss.mean()
+		#pred, loss, noweight_loss = model(img_var, bboxes, cls_ids, targets, weights)
+		#loss, noweight_loss = loss.mean(), noweight_loss.mean()
+		pnum = 100 // num_acts
+		iters = math.ceil(num_boxes / pnum)
+		#logger.info(iters)
+		input_feature = None
+		for this_iter in range(iters):
+			s = this_iter * pnum
+			e = min((this_iter+1) * pnum, num_boxes)
 
-		# backward
-		optimizer.zero_grad()
-		loss.backward()
-		optimizer.step()
-		
-		losses.add(loss.item())
-		noweight_losses.add(noweight_loss.item())
+			bboxes = inp1[:,s:e,:5].contiguous().cuda(async=True)
+			cls_ids = inp1[:,s:e,6].contiguous().cuda(async=True)
+			new_bboxes = inp2[:,s:e,:,:5].contiguous().cuda(async=True)
+			targets = inp2[:,s:e,:,-2].contiguous().cuda(async=True)
+			weights = inp2[:,s:e,:,-1].contiguous().cuda(async=True)
+			
+			#forward
+			if input_feature is None:
+				pred, loss, input_feature = model(img_var, bboxes, new_bboxes, cls_ids, targets, weights)
+			else:
+				pred, loss = model(img_var, bboxes, new_bboxes, cls_ids, targets, weights, input_feature)
+			loss = loss.mean()
+
+			# backward
+			optimizer.zero_grad()
+			loss.backward()
+			optimizer.step()
+			
+			losses.add(loss.item())
+			#logger.info('this iter:{}, loss: {}'.format(this_iter, loss.item()))
+
+		#noweight_losses.add(noweight_loss.item())
 		batch_time.add(time.time() - start)
 		if i % args.log_interval == 0:
+			for act_id, act_pred_cuda in enumerate(pred):
+				act_pred = act_pred_cuda.cpu().data.numpy()
+				logger.info('Act_id {}'.format(act_id)+str((act_pred.min(), act_pred.max(), act_pred.mean())))
 			logger.info('Train: [{0}][{1}/{2}]\t'
 						'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
 						'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-						'NWLoss {nwlosses.val:.3f} ({nwlosses.avg:.3f})\t'.format(
+						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'.format(
+						#'NWLoss {nwlosses.val:.3f} ({nwlosses.avg:.3f})\t'.format(
 							epoch + 1, i, len(train_loader),
 							batch_time=batch_time,
 							data_time=data_time,
-							losses=losses,
-							nwlosses=noweight_losses)
+							losses=losses)
+							#nwlosses=noweight_losses)
 						)
 		start = time.time()
 
