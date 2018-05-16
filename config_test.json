@@ -8,7 +8,7 @@
   "print_freq": 1,
   "ckpt_freq": 1000,
   "log_path": "ckpt",
-  "batch_size": 8,
+  "batch_size": 4,
   "num_actions": 25,
   "num_classes": 80,
   "num_rl_steps": 1,
@@ -20,5 +20,5 @@
   "decay_epoch": 1,
   "gamma": 1,
   "pretrain": "",
-  "resume": "ckpt/model-500.pth"
+  "resume": "ckpt/model-600.pth"
 }

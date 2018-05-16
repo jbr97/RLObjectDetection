@@ -15,6 +15,7 @@ logger = logging.getLogger("global")
 
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
+from pycocotools.mask import iou as IoU
 from model.Reinforcement.Policy import DQN
 from model.Reinforcement.utils import AveMeter
 
@@ -66,12 +67,14 @@ class Player(object):
                 gts = inp[2]
                 for j in range(self.num_rl_steps):
                     # get actions from eval_net
-                    actions = self.policy.get_action(imgs, bboxes).tolist()
+                    # actions = self.policy.get_action(imgs, bboxes).tolist()
 
+                    actions = [0] * bboxes.shape[0]
                     # replace some action in random policy
                     for idx in range(len(actions)):
-                        if np.random.uniform() > self.epsilon:
-                            actions[idx] = np.random.randint(0, self.num_actions + 1)
+                        # if np.random.uniform() > self.epsilon:
+                        #     actions[idx] = np.random.randint(0, self.num_actions + 1)
+                        actions[idx] = np.random.randint(0, self.num_actions + 1)
                     self.epsilon = iters / self.eps_iter
                     # logger.info(len(actions))
 
@@ -79,14 +82,14 @@ class Player(object):
                     # we can get delta_iou
                     # bboxes, actions, transform_bboxes, delta_iou
                     transform_bboxes = self._transform(bboxes, actions)
-                    old_iou = self._compute_iou(gts, bboxes)
+                    old_iou = self._computeIoU(gts, bboxes)
                     # logger.info(len(old_iou))
-                    new_iou = self._compute_iou(gts, transform_bboxes)
+                    new_iou = self._computeIoU(gts, transform_bboxes)
                     # logger.info(len(new_iou))
                     delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
                     # sample bboxes for a positive and negitive balance
-                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou)
+                    bboxes, actions, transform_bboxes, delta_iou = self._sample_bboxes(bboxes, actions, transform_bboxes, delta_iou, old_iou)
                     # logger.info("bbox shape: {}".format(bboxes.shape))
                     # logger.info("action shape: {}".format(len(actions)))
                     # logger.info("transform_bboxes: {}".format(transform_bboxes.shape))
@@ -130,6 +133,61 @@ class Player(object):
                     bboxes = transform_bboxes
                     iters += 1
 
+    def _computeIoU(self, gts, bboxes):
+        """
+        gts: [N, 7], [batch_id, x1, y1, x2, y2, category, iscrowd, cls_id]
+        bboxes: [N, 7], [batch_id, x1, y1, x2, y2, category, score, cls_id]
+        """
+
+
+        ious = []
+        batch_ids = set(bboxes[:, 0].tolist())
+
+        # for i in range(self.batch_size):
+        for i in batch_ids:
+            # gt_ind = np.where(gts[:, 0] == i)[0]
+            # gt = gts[gt_ind][:, 1:7]
+            # dt_ind = np.where(bboxes[:, 0] == i)[0]
+
+            gt = gts[gts[:, 0] == i]
+            dt = bboxes[bboxes[:, 0] == i]
+
+            for j in range(dt.shape[0]):
+                # get dt bbox.
+                dt_bbox = self._transformxywh( dt[j, 1:5] ).tolist()
+
+                # compute category.
+                category = dt[j, 5]
+
+                # get gt bbox.
+                tmp = gt[gt[:, 5] == category]
+                if len(tmp) == 0:
+                    gt_bboxes = [[0, 0, 0, 0]]
+                    iscrowd = [0]
+                else:
+                    gt_bboxes = self._transformxywh( tmp[:, 1:5] ).tolist()
+                    iscrowd = [int(x) for x in tmp[:, 6]]
+
+
+                ious.append( IoU(dt_bbox, gt_bboxes, iscrowd).max() )
+
+        return ious
+
+    def _transformxywh(self, bbox):
+        if bbox.ndim == 1:
+            x1, y1, x2, y2 = bbox
+            bounding_boxes = np.array([[ x1, y1, x2-x1, y2-y1 ]])
+        elif bbox.ndim == 2:
+            n = bbox.shape[0]
+            bounding_boxes = np.zeros((n, 4))
+            for i in range(n):
+                x1, y1, x2, y2 = bbox[i, :]
+                bounding_boxes[i, :] = np.array([ x1, y1, x2-x1, y2-y1 ])
+        else:
+            raise RuntimeError('Unrecognized size of bbox.')
+
+        return bounding_boxes
+
     def eval(self, val_data_loader):
         tot_g_0 = 0
         tot_ge_0 = 0
@@ -140,7 +198,7 @@ class Player(object):
         all_old_bboxes = list()
         all_new_bboxes = list()
         action_nums = [0] * 25
-        iou_nums = [0] * 6
+        iou_nums = [0] * 7
         for i, inp in enumerate(val_data_loader):
             imgs = inp[0]
             bboxes = inp[1]
@@ -154,45 +212,43 @@ class Player(object):
                 action_nums[action] += 1
             # get old_iou & new_iou
             transform_bboxes = self._transform(bboxes, actions)
-            old_iou = self._compute_iou(gts, bboxes)
-            new_iou = self._compute_iou(gts, transform_bboxes)
+            old_iou = self._computeIoU(gts, bboxes)
+            new_iou = self._computeIoU(gts, transform_bboxes)
 
             delta_iou = list(map(lambda x: x[0] - x[1], zip(new_iou, old_iou)))
 
-            iou_nums[0] += len([u for u in delta_iou if u >= 0.1])
-            iou_nums[1] += len([u for u in delta_iou if u < 0.1 and u > 0.05])
-            iou_nums[2] += len([u for u in delta_iou if u < 0.05 and u >= 0])
-            iou_nums[3] += len([u for u in delta_iou if u < 0 and u >= -0.05])
-            iou_nums[4] += len([u for u in delta_iou if u < -0.05 and u >= -0.1])
-            iou_nums[5] += len([u for u in delta_iou if u < -0.1])
+            tmp0 = len([u for u,v in zip(delta_iou, old_iou) if u > 0.1 and v >= 0.5])
+            tmp1 = len([u for u,v in zip(delta_iou, old_iou) if u <= 0.1 and u > 0.05 and v >= 0.5])
+            tmp2 = len([u for u,v in zip(delta_iou, old_iou) if u <= 0.05 and u > 0 and v >= 0.5])
+            tmp3 = len([u for u,v in zip(delta_iou, old_iou) if u == 0 and v >= 0.5])
+            tmp4 = len([u for u,v in zip(delta_iou, old_iou) if u < 0 and u >= -0.05 and v >= 0.5])
+            tmp5 = len([u for u,v in zip(delta_iou, old_iou) if u < -0.05 and u >= -0.1 and v >= 0.5])
+            tmp6 = len([u for u,v in zip(delta_iou, old_iou) if u < -0.1 and v >= 0.5])
 
-            g_0 = len([u for u in delta_iou if u > 0])
-            ge_0 = len([u for u in delta_iou if u >= 0])
-            logger.info("Acc(>0): {0} Acc(>=0): {1}"
-                        .format(g_0 / len(delta_iou), ge_0 / len(delta_iou)))
-            tot_g_0 += g_0
-            tot_ge_0 += ge_0
-            tot += len(delta_iou)
-
+            iou_nums[0] += tmp0
+            iou_nums[1] += tmp1
+            iou_nums[2] += tmp2
+            iou_nums[3] += tmp3
+            iou_nums[4] += tmp4
+            iou_nums[5] += tmp5
+            iou_nums[6] += tmp6
+            tmp = len([u for u in old_iou if u >= 0.5])
+            logger.info("| {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |"
+                        .format(tmp0 / tmp, tmp1 / tmp, tmp2 / tmp,
+                                tmp3 / tmp, tmp4 / tmp, tmp5 / tmp,
+                                tmp6 / tmp))
+            tot += tmp
             for j, (old_bbox, new_bbox) in enumerate(zip(bboxes, transform_bboxes)):
-                # bbox = (old_bbox[1:5] / resize_scales[j // 100]).tolist()
-                # old_ann = {"image_id": int(ids[int(old_bbox[0])]), "category_id":int(old_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": old_bbox[6]}
                 bbox = (new_bbox[1:5] / resize_scales[j // 100]).tolist()
                 new_ann = {"image_id": int(ids[int(new_bbox[0])]), "category_id":int(new_bbox[5]), "bbox": [bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]], "score": new_bbox[6]}
-                #print (old_ann)
-                # all_old_bboxes.append(old_ann)
                 all_new_bboxes.append(new_ann)
             """
             if i % 50 == 0:
                 self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
                 self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
             """
-        logger.info("Acc(>0): {0} Acc(>=0): {1}"
-                    .format(tot_g_0 / tot, tot_ge_0 / tot))
         for idx, action_num in enumerate(action_nums):
             logger.info("the num of action {} is {}".format(idx, action_num))
-        # self._save_results(all_old_bboxes, os.path.join(self.log_path, "old_results.json"))
-        # self._do_detection_eval(os.path.join(self.log_path, "old_results.json"))
         for iou_num in iou_nums:
             logger.info("rate: {}".format(iou_num / tot))
         self._save_results(all_new_bboxes, os.path.join(self.log_path, "new_results.json"))
@@ -313,7 +369,7 @@ class Player(object):
         union_area2 = (union_area1 - inter_area)
         return inter_area / np.maximum(union_area2, 1)
 
-    def _sample_bboxes(self, bboxes, actions, tranform_bboxes, delta_iou):
+    def _sample_bboxes(self, bboxes, actions, tranform_bboxes, delta_iou, old_iou):
         """
         sample bboxes for balance
         :param bboxes: [N, 6], batch_ids, x1, y1, x2, y2, score
@@ -322,8 +378,8 @@ class Player(object):
         :param delta_iou: [N]
         :return: sampled result
         """
-        fg_inds = np.where(np.array(delta_iou) > 0)[0]
-        bg_inds = np.where(np.array(delta_iou) < 0)[0]
+        fg_inds = np.where((np.array(delta_iou) > 0) & (np.array(old_iou) > 0.5))[0]
+        bg_inds = np.where((np.array(delta_iou) < 0) & (np.array(old_iou) > 0.5))[0]
         # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))
         fg_num = int(self.sample_num * self.sample_ratio)
@@ -350,7 +406,7 @@ class Player(object):
             if actions[i] == 0:
                 rewards.append(0.05)
             else:
-                rewards.append(math.tan(delta_iou[i] / 0.14))
+                rewards.append(delta_iou[i])
         return rewards
 
 

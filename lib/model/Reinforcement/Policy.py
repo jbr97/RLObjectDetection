@@ -73,8 +73,11 @@ class DQN(object):
         batch_size = bboxes.shape[0]
         img = Variable(imgs).cuda()
         classes = Variable(torch.LongTensor(bboxes[:, 7]).contiguous().cuda())
-        bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
-        #classes = Variable(torch.FloatTensor(bboxes[:, 7])).contiguous().cuda()
+        bboxes = bboxes[:, :5]
+        bboxes = self._expand_bbox(bboxes)
+        bboxes = Variable(torch.FloatTensor(bboxes).contiguous().cuda()) 
+        # bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
+        # classes = Variable(torch.FloatTensor(bboxes[:, 7])).contiguous().cuda()
 
         values = self.eval_net(img, bboxes)
 
@@ -114,11 +117,15 @@ class DQN(object):
 
         imgs = Variable(imgs.cuda())
         input_dim = bboxes.shape[0]
-        bboxes = Variable(torch.FloatTensor(bboxes[:, :5]).contiguous().cuda())
+        #bboxes = Variable(torch.FloatTensor(bboxes[:, :5]).contiguous().cuda())
         actions = Variable(torch.LongTensor(np.array(actions)).cuda())
         transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:, :5]).contiguous().cuda())
         rewards = Variable(torch.FloatTensor(rewards).cuda()).view(input_dim, 1)
         classes = Variable(torch.LongTensor(classes).contiguous().cuda())
+        
+        bboxes = bboxes[:, :5]
+        bboxes = self._expand_bbox(bboxes)
+        bboxes = Variable(torch.FloatTensor(bboxes).contiguous().cuda())
 
         Q_output = self.eval_net(imgs, bboxes)
         # logger.info("Shape of Q_output: {}".format(Q_output.shape))
@@ -126,11 +133,12 @@ class DQN(object):
         Q_eval = Q_output[range(Q_output.shape[0]), actions].view(input_dim, 1)
         # logger.info("Qeval : {}".format(Q_eval.shape))
 
-        Q_next = self.target_net(imgs, transform_bboxes).detach()
-        Q_next = Q_next.view(batch_size, self.class_num, self.action_num)
-        Q_next = Q_next[range(batch_size), classes, :].view(batch_size, self.action_num)
-        Q_next_mask = Q_next.max(1)[0].view(input_dim, 1)
-        Q_target = rewards + self.gamma * Q_next_mask * not_end
+        #Q_next = self.target_net(imgs, transform_bboxes).detach()
+        #Q_next = Q_next.view(batch_size, self.class_num, self.action_num)
+        #Q_next = Q_next[range(batch_size), classes, :].view(batch_size, self.action_num)
+        #Q_next_mask = Q_next.max(1)[0].view(input_dim, 1)
+        #Q_target = rewards + self.gamma * Q_next_mask * not_end
+        Q_target = rewards        
 
         loss = self.loss_func(Q_eval, Q_target)
         # logger.info("Loss {}".format(loss))
@@ -140,6 +148,23 @@ class DQN(object):
         self.optimizer.step()
 
         return loss.cpu().data.numpy()
+
+    def _expand_bbox(self, bbox):
+        small_bbox = bbox.copy()
+        small_bbox[:, 1] += 0.1 * (bbox[:, 3] - bbox[:, 1])
+        small_bbox[:, 2] += 0.1 * (bbox[:, 4] - bbox[:, 2])
+        small_bbox[:, 3] -= 0.1 * (bbox[:, 3] - bbox[:, 1])
+        small_bbox[:, 4] -= 0.1 * (bbox[:, 4] - bbox[:, 2])
+
+        large_bbox = bbox.copy()
+        large_bbox[:, 1] -= 0.1 * (bbox[:, 3] - bbox[:, 1])
+        large_bbox[:, 2] -= 0.1 * (bbox[:, 4] - bbox[:, 2])
+        large_bbox[:, 3] += 0.1 * (bbox[:, 3] - bbox[:, 1])
+        large_bbox[:, 4] += 0.1 * (bbox[:, 4] - bbox[:, 2])
+
+        new_bbox = np.concatenate((small_bbox, bbox, large_bbox), axis=1)
+        new_bbox = new_bbox.reshape(bbox.shape[0] * 3, bbox.shape[1])
+        return new_bbox
 
     def _adjust_learning_rate(self):
         if self.iters > 80000:
