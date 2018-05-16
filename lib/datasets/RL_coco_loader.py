@@ -22,7 +22,7 @@ class COCODataLoader(DataLoader):
         '''
         Return: a mini-batch of data:
             image_data: Variable of image, with shape of [b, 3, max_h, max_w]
-            bboxes:     FloatTensor of shape [b, max_num_boxes, 7]  (bid, x1, y1, x2, y2, score, cls_id)
+            bboxes:     FloatTensor of shape [b, max_num_boxes, 9]  (bid, x1, y1, x2, y2, score, cls_id, image_id, cat_id)
             labels:     FloatTensor of shape [b, max_num_boxes, act_nums, 3] (act_id, label, weight)
             im_infos:   list of len=b, of(
                         resized_image_h, resized_image_w, resize_scale, 
@@ -54,7 +54,7 @@ class COCODataLoader(DataLoader):
         assert(max_num_bboxes > 0)
 
         padded_images = torch.FloatTensor(batch_size, 3, max_img_h, max_img_w)
-        padded_bboxes = torch.FloatTensor(batch_size, max_num_bboxes, 8)
+        padded_bboxes = torch.FloatTensor(batch_size, max_num_bboxes, 9)
         padded_labels = torch.FloatTensor(batch_size, max_num_bboxes, num_acts, 3)
         for bid in range(batch_size):
             img = images[bid]

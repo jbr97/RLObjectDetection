@@ -168,7 +168,7 @@ class COCODataset(Dataset):
                 cls_id = self.cat2cls[cat_id]
                 bbox[2] += bbox[0]                              # 喂入faster-rcnn中的bbox是（x1, y1, x2, y2）格式
                 bbox[3] += bbox[1]
-                generate_bboxes.append(bbox+[score]+[cls_id]+[img_id])
+                generate_bboxes.append(bbox+[score]+[cls_id]+[img_id]+[cat_id])
                 generate_labels.append(generate_label)
 
         ## image data processing

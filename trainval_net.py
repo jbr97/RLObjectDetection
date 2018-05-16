@@ -10,6 +10,7 @@ import logging
 import argparse
 import numpy as np
 from config import Config
+import json
 
 import torch
 import torch.optim as optim
@@ -22,6 +23,7 @@ from datasets.RL_coco_loader import COCODataLoader
 from model.Reinforcement.resnet import resnet101
 from model.Reinforcement.action import Action
 from model.Reinforcement.utils import *
+
 
 def parse_args():
 	"""
@@ -159,13 +161,13 @@ def main():
 		#
 		dt_boxes = Evaluate(model, dataloader, bbox_action)
 		ensure_dir(os.path.join(args.save_dir, 'jsons'))
-		filename = 'detections_{}_epoch{}_results.json'.format((args.phase, start_epoch))
+		filename = 'detections_{}_epoch{}_results.json'.format(phase, start_epoch)
 		filename = os.path.join(args.save_dir, 'jsons', filename)
 		json.dump(dt_boxes, open(filename, 'w'))
-		cocoval(args.ann_file, filename)
+		cocoval(config.ann_file, filename)
 		
 	logger.info('Exit without error.')
-
+	
 
 def Savecheckpoint(save_dir, epoch, model):
 	global args, config
@@ -269,66 +271,33 @@ def Evaluate(model, val_loader, bbox_action):
 
 		assert batch_size*100 == bboxes.shape[0]
 		for j in range(bboxes.shape[0]):
-			bid = bboxes[j, 0]
+			bid = int(bboxes[j, 0])
 			scale = im_infos[bid][2]
 			bboxes[j, 1:5] /= scale
 		
-		newbboxes = bbox_action.move_from_act2(bboxes[:, 1:5], preds, targets, percentage=0.01)
+		newbboxes = bbox_action.move_from_act2(bboxes[:, 1:5], preds, targets, percentage=0.05)
 		bboxes[:, 1:5] = newbboxes
 		for j, bbox in enumerate(bboxes):
 			dtbox = {
 				'bbox': [float(bbox[1]), float(bbox[2]), float(bbox[3]), float(bbox[4])],
 				'score': float(bbox[5]),
-				'category_id': int(bbox[6]),
+				'category_id': int(bbox[8]),
 				'image_id': int(bbox[7])
 			}
 			dt_boxes.append(dtbox)
 
 
 
-		# for j, bbox in enumerate(bboxes):
-		# 	bid = int(bbox[0])
-		# 	scale = im_infos[bid][2]
-		# 	bbox[1:5] /= scale
-
-		# 	newbox
-
-			
-		# 	dtbox = {
-		# 		'bbox': [float(bbox[1]), float(bbox[2]), float(bbox[3]), float(bbox[4])],
-		# 		'score': float(bbox[5]),
-		# 		'category_id': int(bbox[6]),
-		# 		'image_id': int(bbox[7])
-		# 	}
-		# 	dt_boxes.append(dtbox)
-
 		losses.add(loss.item())
 		batch_time.add(time.time() - start)
 		if i % args.log_interval == 0 or i == len(val_loader)-1:
-			# logger.info('Test: [{0}/{1}]\t'
-			# 			'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-			# 			'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-			# 			'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-			# 			'Prec_per_box {Prec_per_box.val:.3f} ({Prec_per_box.avg:.3f})\t'
-			# 			'Prec1_per_img {Prec1_per_img.val:.3f} ({Prec1_per_img.avg:.3f})\t'
-			# 			'Prec5_per_img {Prec5_per_img.val:.3f} ({Prec5_per_img.avg:.3f})\t'
-			# 			'Prec10_per_img {Prec10_per_img.val:.3f} ({Prec10_per_img.avg:.3f})\t'.format(
-			# 				i, len(val_loader),
-			# 				batch_time=batch_time,
-			# 				data_time=data_time,
-			# 				losses=losses,
-			# 				Prec_per_box=Prec_per_box, 
-			# 				Prec1_per_img=Prec1_per_img, 
-			# 				Prec5_per_img=Prec5_per_img, 
-			# 				Prec10_per_img=Prec10_per_img)
-			# 			)
 			logger.info('Test: [{0}/{1}]\t'
 						'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
 						'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
 						'Loss {losses.val:.3f} ({losses.avg:.3f})\t'
-						'Prec1_per_img {Prec1_per_batch.val:.3f} ({Prec1_per_batch.avg:.3f})\t'
-						'Prec5_per_img {Prec5_per_batch.val:.3f} ({Prec5_per_batch.avg:.3f})\t'
-						'Prec10_per_img {Prec10_per_batch.val:.3f} ({Prec10_per_batch.avg:.3f})\t'.format(
+						'Prec1_per_batch {Prec1_per_batch.val:.3f} ({Prec1_per_batch.avg:.3f})\t'
+						'Prec5_per_batch {Prec5_per_batch.val:.3f} ({Prec5_per_batch.avg:.3f})\t'
+						'Prec10_per_batch {Prec10_per_batch.val:.3f} ({Prec10_per_batch.avg:.3f})\t'.format(
 							i, len(val_loader),
 							batch_time=batch_time,
 							data_time=data_time,
@@ -340,9 +309,6 @@ def Evaluate(model, val_loader, bbox_action):
 
 		start = time.time()
 
-	# prec1_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.01)
-	# prec5_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.05)
-	# prec10_per_act = bbox_action.accuracy_per_act(all_preds, all_targets, ratio=.1)
 
 	prec1_per_batch = bbox_action.accuracy_per_batch(all_preds, all_targets, percentage=0.01)
 	prec5_per_batch = bbox_action.accuracy_per_batch(all_preds, all_targets, percentage=0.05)
@@ -352,8 +318,8 @@ def Evaluate(model, val_loader, bbox_action):
 		# Prec1_per_act.add(prec1_per_act[act_id])
 		# Prec5_per_act.add(prec5_per_act[act_id])
 		# Prec10_per_act.add(prec10_per_act[act_id])
-		logger.info('Action id: [{0}]\t'
-					'Action Delta: {1}\t'
+		logger.info('Action id: [{}]\t'
+					'Action Delta: {}\t'
 					'Prec1_per_act ({:.3f})\t'
 					'Prec5_per_act ({:.3f})\t'
 					'Prec10_per_act ({:.3f})\t'.format(

@@ -79,8 +79,9 @@ def cocoval(ann_file, res_file, ann_type='bbox'):
     from pycocotools.cocoeval import COCOeval
     coco_gt = COCO(ann_file)
     coco_dt = coco_gt.loadRes(res_file)
-    imgIds = sorted(coco_gt.getImgIds())
+    # imgIds = sorted(coco_gt.getImgIds())
     coco_eval = COCOeval(coco_gt, coco_dt)
+    coco_eval.params.useSegm = (ann_type == 'segm')
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
