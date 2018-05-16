@@ -220,7 +220,7 @@ def Evaluate(model, val_loader, bbox_action):
 		# get output boxes
 		bboxes = inp[1].numpy()
 		bboxes[:, 3] = bboxes[:, 3] - bboxes[:, 1]
-		bboxes[:, 4] = bboxes[:, 4] - bboxes[:, 2]
+		bboxes[:, 4] = bboxes[:, 4] - bboxes[:, 2]        # bbox的格式又变为[x,y,w,h]，方便计算diou
 		# batch_size = bboxes.shape[0]
 		batch_size = args.batch_size
 		assert batch_size * 100 == bboxes.shape[0], 'Unmatched shape: {}'.format(bboxes.shape)
@@ -266,11 +266,16 @@ def Evaluate(model, val_loader, bbox_action):
 		# generate detection results
 		bboxes = bboxes.reshape(-1, bboxes.shape[-1]).astype(float)
 		im_infos = inp[3]
-		for j, bbox in enumerate(bboxes):
-			bid = int(bbox[0])
+
+		assert batch_size*100 == bboxes.shape[0]
+		for j in range(bboxes.shape[0]):
+			bid = bboxes[j, 0]
 			scale = im_infos[bid][2]
-			bbox[1:5] /= scale
-			
+			bboxes[j, 1:5] /= scale
+		
+		newbboxes = bbox_action.move_from_act2(bboxes[:, 1:5], preds, targets, percentage=0.01)
+		bboxes[:, 1:5] = newbboxes
+		for j, bbox in enumerate(bboxes):
 			dtbox = {
 				'bbox': [float(bbox[1]), float(bbox[2]), float(bbox[3]), float(bbox[4])],
 				'score': float(bbox[5]),
@@ -278,6 +283,24 @@ def Evaluate(model, val_loader, bbox_action):
 				'image_id': int(bbox[7])
 			}
 			dt_boxes.append(dtbox)
+
+
+
+		# for j, bbox in enumerate(bboxes):
+		# 	bid = int(bbox[0])
+		# 	scale = im_infos[bid][2]
+		# 	bbox[1:5] /= scale
+
+		# 	newbox
+
+			
+		# 	dtbox = {
+		# 		'bbox': [float(bbox[1]), float(bbox[2]), float(bbox[3]), float(bbox[4])],
+		# 		'score': float(bbox[5]),
+		# 		'category_id': int(bbox[6]),
+		# 		'image_id': int(bbox[7])
+		# 	}
+		# 	dt_boxes.append(dtbox)
 
 		losses.add(loss.item())
 		batch_time.add(time.time() - start)
@@ -331,13 +354,13 @@ def Evaluate(model, val_loader, bbox_action):
 		# Prec10_per_act.add(prec10_per_act[act_id])
 		logger.info('Action id: [{0}]\t'
 					'Action Delta: {1}\t'
-					'Prec1_per_act {:.3f} ({:.3f})\t'
-					'Prec5_per_act {:.3f} ({:.3f})\t'
-					'Prec10_per_act {:.3f} ({:.3f})\t'.format(
+					'Prec1_per_act ({:.3f})\t'
+					'Prec5_per_act ({:.3f})\t'
+					'Prec10_per_act ({:.3f})\t'.format(
 						act_id, str(bbox_action.actDeltas[act_id]),
-						Prec1_per_batch,
-						Prec5_per_batch,
-						Prec10_per_batch)
+						prec1_per_batch,
+						prec5_per_batch,
+						prec10_per_batch)
 					)
 	return dt_boxes
 

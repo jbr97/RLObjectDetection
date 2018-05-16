@@ -166,3 +166,21 @@ class Action:
 				if cnt >= maxk:
 					break
 		return bboxes, correct * 100. / (batch_size * maxk)
+
+
+	def move_from_act2(self, bboxes, preds, targets, percentage=0.01):
+		n_bboxes, n_bins = preds.shape
+		assert n_bboxes == targets.shape[0] and n_bins == 7 and bboxes.shape[0] == n_bboxes
+
+		preds_maxscore = np.max(preds, axis=1)
+		n_top = int(n_bboxes*percentage)
+		inds = np.argsort(preds_maxscore)[-n_top:]
+		for i in inds:
+			ind = np.argmax(preds[i, :])
+			if ind > 3:
+				bbox = bboxes[i, :]
+				assert len(self.actDeltas[0]) == 4 and len(bbox) == 4
+				_, _, w, h = bbox
+				new_bbox = bbox + self.actDeltas[0] * np.array([w, h, w, h])
+				bboxes[i, :] = new_bbox
+		return bboxes
