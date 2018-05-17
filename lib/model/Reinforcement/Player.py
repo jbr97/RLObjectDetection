@@ -56,6 +56,7 @@ class Player(object):
         data_time = AveMeter(30)
 
         start = time.time()
+        cnts = [0] * self.num_actions
         for epoch in range(self.max_epoch):
             for i, inp in enumerate(train_dataloader):
                 # suppose we have img, bboxes, gts
@@ -102,6 +103,15 @@ class Player(object):
                         not_end = 0
                     else:
                         not_end = 1
+                    
+                    # action distribution
+                    for action in actions:
+                        cnts[action] += 1
+                    s = ""
+                    for cnt in cnts:
+                        s += "|{}".format(cnt)
+                    s += "|"
+                    logger.info(s)
                     loss = self.policy.learn(imgs, bboxes, actions, transform_bboxes, rewards, not_end)
 
                     losses.add(np.mean(loss))
@@ -406,7 +416,7 @@ class Player(object):
             if actions[i] == 0:
                 rewards.append(0.05)
             else:
-                rewards.append(delta_iou[i])
+                rewards.append(delta_iou[i] * 10)
         return rewards
 
 

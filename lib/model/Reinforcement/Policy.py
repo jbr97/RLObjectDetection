@@ -52,7 +52,7 @@ class DQN(object):
 
         self.eval_net.freeze_layer()
         self.target_net.freeze_layer()
-        self.loss_func = nn.MSELoss()
+        self.loss_func = nn.SmoothL1Loss()
 
 
         parameter = []
@@ -89,7 +89,7 @@ class DQN(object):
         max_inds = torch.max(values, 1)[1].cpu().data.numpy()
         action = []
         for max_val, max_ind in zip(max_vals, max_inds):
-            if max_val < 0.05:
+            if max_val < 0.5:
                 action.append(0)
             else:
                 action.append(max_ind)
@@ -104,7 +104,7 @@ class DQN(object):
         batch_size = bboxes.shape[0]
 
         # learning rate decay
-        # self._adjust_learning_rate()
+        self._adjust_learning_rate()
 
         classes = bboxes[:, 7]
         for cls in classes:
@@ -167,9 +167,9 @@ class DQN(object):
         return new_bbox
 
     def _adjust_learning_rate(self):
-        if self.iters > 80000:
+        if self.iters > 8000:
             lr = self.learning_rate * 0.01
-        elif self.iters > 60000:
+        elif self.iters > 6000:
             lr = self.learning_rate * 0.1
         else:
             lr = self.learning_rate
