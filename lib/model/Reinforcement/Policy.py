@@ -167,9 +167,9 @@ class DQN(object):
         return new_bbox
 
     def _adjust_learning_rate(self):
-        if self.iters > 8000:
+        if self.iters > 80000:
             lr = self.learning_rate * 0.01
-        elif self.iters > 6000:
+        elif self.iters > 60000:
             lr = self.learning_rate * 0.1
         else:
             lr = self.learning_rate

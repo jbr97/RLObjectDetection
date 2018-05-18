@@ -51,9 +51,9 @@ class Player(object):
 
     def train(self, train_dataloader):
         iters = 0
-        losses = AveMeter(30)
-        batch_time = AveMeter(30)
-        data_time = AveMeter(30)
+        losses = AveMeter(100)
+        batch_time = AveMeter(100)
+        data_time = AveMeter(100)
 
         start = time.time()
         cnts = [0] * self.num_actions
@@ -105,13 +105,13 @@ class Player(object):
                         not_end = 1
                     
                     # action distribution
-                    for action in actions:
-                        cnts[action] += 1
-                    s = ""
-                    for cnt in cnts:
-                        s += "|{}".format(cnt)
-                    s += "|"
-                    logger.info(s)
+                    #for action in actions:
+                    #    cnts[action] += 1
+                    #s = ""
+                    #for cnt in cnts:
+                    #    s += "|{}".format(cnt)
+                    #s += "|"
+                    #logger.info(s)
                     loss = self.policy.learn(imgs, bboxes, actions, transform_bboxes, rewards, not_end)
 
                     losses.add(np.mean(loss))
