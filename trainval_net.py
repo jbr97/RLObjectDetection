@@ -89,7 +89,8 @@ def main():
 			batch_size=args.batch_size, 
 			shuffle=config.data_shuffle, 
 			num_workers=config.num_workers,
-			pin_memory=config.data_pin_memory)
+			pin_memory=config.data_pin_memory,
+			balancenum=config.balance_num)
 	else:
 		dataloader = COCODataLoader(
 			dataset, 
