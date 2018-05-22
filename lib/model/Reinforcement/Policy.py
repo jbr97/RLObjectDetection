@@ -119,13 +119,16 @@ class DQN(object):
         input_dim = bboxes.shape[0]
         #bboxes = Variable(torch.FloatTensor(bboxes[:, :5]).contiguous().cuda())
         actions = Variable(torch.LongTensor(np.array(actions)).cuda())
-        transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:, :5]).contiguous().cuda())
+        #transform_bboxes = Variable(torch.FloatTensor(transform_bboxes[:, :5]).contiguous().cuda())
         rewards = Variable(torch.FloatTensor(rewards).cuda()).view(input_dim, 1)
         classes = Variable(torch.LongTensor(classes).contiguous().cuda())
         
         bboxes = bboxes[:, :5]
-        bboxes = self._expand_bbox(bboxes)
-        bboxes = Variable(torch.FloatTensor(bboxes).contiguous().cuda())
+        transform_bboxes = transform_bboxes[:, :5]
+        new_bboxes = np.concatenate((bboxes, transform_bboxes), axis=1)
+        new_bboxes = new_bboxes.reshape(bboxes.shape[0] * 2, bboxes.shape[1])
+        #bboxes = self._expand_bbox(bboxes)
+        bboxes = Variable(torch.FloatTensor(new_bboxes).contiguous().cuda())
 
         Q_output = self.eval_net(imgs, bboxes)
         # logger.info("Shape of Q_output: {}".format(Q_output.shape))
@@ -167,9 +170,9 @@ class DQN(object):
         return new_bbox
 
     def _adjust_learning_rate(self):
-        if self.iters > 80000:
+        if self.iters > 8000:
             lr = self.learning_rate * 0.01
-        elif self.iters > 60000:
+        elif self.iters > 6000:
             lr = self.learning_rate * 0.1
         else:
             lr = self.learning_rate
