@@ -57,11 +57,20 @@ class Action:
         n_top = int(n_bboxes*percentage)
         inds = np.argsort(preds_maxscore)[-n_top:]
         cnt_correct = 0
+
+        n_correct = 0
         for i in inds:
-            ind = np.argmax(preds[i, :])
+            ind = np.argmax(l_preds[i, :])
+            if (targets[i] == 3 and ind == 3) or (targets[i] > 3 and ind > 3):
+                continue
+            if ind < 3:
+                n_correct += 1
             if (targets[i] == 3 and ind == 3) or (targets[i] > 3 and ind > 3) or (targets[i] < 3 and ind < 3):
                 cnt_correct += 1
-        return cnt_correct*100./n_top
+        if n_correct == 0:
+            return 100.0
+        else:
+            return cnt_correct*100./n_correct
 
 
 
@@ -196,7 +205,7 @@ class Action:
         n_top = int(n_bboxes*percentage)
         inds = np.argsort(preds_maxscore)[-n_top:]
         for i in inds:
-            ind = np.argmax(preds[i, :])
+            ind = np.argmax(l_preds[i, :])
             if ind < 3:			# (1, inf), (0.5, 1], (0, 0.5], 0, [-0.5, 0), [-0.5, -0.1), (-inf, -0.1]
                 bbox = bboxes[i, :]
                 assert len(self.actDeltas[0]) == 4 and len(bbox) == 4
