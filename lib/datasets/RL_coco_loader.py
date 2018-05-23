@@ -12,11 +12,10 @@ class COCODataLoader(DataLoader):
 
     """
     def __init__(self, dataset, batch_size=1, shuffle=False, sampler=None, batch_sampler=None,
-                 num_workers=0, pin_memory=False, drop_last=False, istrain=True, balancenum=10):
+                 num_workers=0, pin_memory=False, drop_last=False, istrain=True):
         super(COCODataLoader, self).__init__(dataset, batch_size, shuffle, sampler, batch_sampler,
                                         num_workers, self._collate_fn, pin_memory, drop_last)
         self.istrain = istrain
-        self.balancenum = balancenum
 
 
     def _collate_fn(self, batch):
@@ -108,12 +107,12 @@ class COCODataLoader(DataLoader):
 
             n_minind = min(len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6))
 
-            logger.info('n({}:{}) of different classes: {}, {}, {}, {}, {}, {}, {}'.format(
-                        n_minind, self.balancenum,
+            logger.info('n({}) of different classes: {}, {}, {}, {}, {}, {}, {}'.format(
+                        n_minind,
                         len(ind0), len(ind1), len(ind2), len(ind3), len(ind4), len(ind5), len(ind6)))
             #assert n_minind >= 5, 'The num of samples is too small.'
 
-            n_minind = self.balancenum
+            n_minind = 1 if n_minind == 0 else n_minind
             n_pick0 = n_minind if len(ind0) >= n_minind else len(ind0)
             n_pick1 = n_minind if len(ind1) >= n_minind else len(ind1)
             n_pick2 = n_minind if len(ind2) >= n_minind else len(ind2)

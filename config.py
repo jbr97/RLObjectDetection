@@ -49,7 +49,6 @@ class Config:
 	# act_delta = [.5, .25, .125, .0625, .03125, .015625, .008]
 	act_delta = [.125]
 	act_iou_thres = 0
-	balance_num = 10
 
 	@staticmethod
 	def act_wtrans(x):
