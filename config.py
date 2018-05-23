@@ -14,8 +14,8 @@ class Config:
 	train_img_short = [800]
 	train_img_size = 1200
 	train_flip = False
-	train_max_epoch = 100
-	train_lr_decay = [18, 22]
+	train_max_epoch = 50
+	train_lr_decay = [10, 20, 30]
 	train_data_dir = 'data/coco/images/train2014'
 	train_ann_file = 'data/coco/annotations/instances_train2014.json'
 	train_dt_file = 'data/output/detections_train2014_results.json'
@@ -38,7 +38,7 @@ class Config:
 	# SGD settings
 	momentum = 0.9
 	weight_decay = 0.0001
-	learning_rate = 0.01
+	learning_rate = 0.1
 
 	# data_loader settings
 	num_workers = 6
@@ -47,7 +47,7 @@ class Config:
 
 	# action settings
 	# act_delta = [.5, .25, .125, .0625, .03125, .015625, .008]
-	act_delta = [.125]
+	act_delta = [.25]
 	act_iou_thres = 0
 
 	@staticmethod
