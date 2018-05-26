@@ -7,6 +7,7 @@ from torch.autograd import Variable
 import numpy as np
 
 from model.Reinforcement.DQLNetwork import resnet101
+from model.Reinforcement.utils import *
 
 import logging
 logger = logging.getLogger("global")
@@ -32,15 +33,15 @@ class DQN(object):
         initialize two networks for DQL
         :return: None
         """
-        self.eval_net = resnet101().cuda()
-        self.target_net = resnet101().cuda()
+        self.eval_net = resnet101(class_num=self.class_num, action_num=self.action_num).cuda()
+        #self.target_net = resnet101().cuda()
 
         if self.pretrain != "":
             assert os.path.isfile(self.pretrain), '{} is not a valid file'.format(self.pretrain)
             logger.info("load ckpt from {}".format(self.pretrain))
             checkpoint = torch.load(self.pretrain)
             self.eval_net.load_state_dict(checkpoint, strict=False)
-            self.target_net.load_state_dict(checkpoint, strict=False)
+            #self.target_net.load_state_dict(checkpoint, strict=False)
 
         if self.resume != "":
             assert os.path.isfile(self.resume), '{} is not a valid file'.format(self.resume)
@@ -48,10 +49,10 @@ class DQN(object):
             checkpoint = torch.load(self.resume)
             # start_epoch = checkpoint['epoch']
             self.eval_net.load_state_dict(checkpoint['state_dict'], strict=True)
-            self.target_net.load_state_dict(checkpoint['state_dict'], strict=True)
+            #self.target_net.load_state_dict(checkpoint['state_dict'], strict=True)
 
         self.eval_net.freeze_layer()
-        self.target_net.freeze_layer()
+        #self.target_net.freeze_layer()
         self.loss_func = nn.SmoothL1Loss()
 
 
@@ -74,19 +75,34 @@ class DQN(object):
         img = Variable(imgs).cuda()
         classes = Variable(torch.LongTensor(bboxes[:, 7]).contiguous().cuda())
         bboxes = bboxes[:, :5]
-        bboxes = self._expand_bbox(bboxes)
-        bboxes = Variable(torch.FloatTensor(bboxes).contiguous().cuda()) 
-        # bboxes = Variable(torch.FloatTensor(bboxes[:, :5])).contiguous().cuda()
-        # classes = Variable(torch.FloatTensor(bboxes[:, 7])).contiguous().cuda()
+        
+        rewards = np.zeros((batch_size, self.action_num))
+        for i in range(1, self.action_num): 
+            actions = [i] * batch_size
+            transform_bboxes = transform(bboxes, actions)
+            new_bbox = np.concatenate((bboxes, transform_bboxes), axis=1)
+            new_bbox = new_bbox.reshape(bboxes.shape[0] * 2, bboxes.shape[1])
+            new_bbox = self._expand_bbox(new_bbox)
+            new_bbox = Variable(torch.FloatTensor(new_bbox).contiguous().cuda()) 
+            actions = Variable(torch.LongTensor(actions)).cuda()
+            values = self.eval_net(img, new_bbox)
 
-        values = self.eval_net(img, bboxes)
+            values = values.view(batch_size, self.class_num, self.action_num)
+            values = values[range(batch_size), classes, actions]
+            #logger.info("the shape of values is {}".format(values.shape))
 
-        values = values.view(batch_size, self.class_num, self.action_num)
-        values = values[range(batch_size), classes, :].view(batch_size, self.action_num)
-        logger.info("the shape of values is {}".format(values.shape))
-
-        max_vals = torch.max(values, 1)[0].cpu().data.numpy()
-        max_inds = torch.max(values, 1)[1].cpu().data.numpy()
+            rewards[:, i] = values.cpu().data.numpy()
+            #max_vals = torch.max(values, 1)[0].cpu().data.numpy()
+            #max_inds = torch.max(values, 1)[1].cpu().data.numpy()
+            #action = []
+            #for max_val, max_ind in zip(max_vals, max_inds):
+            #    if max_val < 0.5:
+            #        action.append(0)
+            #    else:
+            #        action.append(max_ind)
+            #action = np.array(action)
+        max_vals = np.max(rewards, axis=1)
+        max_inds = np.argmax(rewards, axis=1)
         action = []
         for max_val, max_ind in zip(max_vals, max_inds):
             if max_val < 0.5:
@@ -94,9 +110,6 @@ class DQN(object):
             else:
                 action.append(max_ind)
         action = np.array(action)
-        # action = torch.max(values, 1)[1].cpu().data.numpy()
-        # logger.info(action)
-        # action = action[0]
         return action
 
     def learn(self, imgs, bboxes, actions, transform_bboxes, rewards, not_end):
@@ -127,7 +140,7 @@ class DQN(object):
         transform_bboxes = transform_bboxes[:, :5]
         new_bboxes = np.concatenate((bboxes, transform_bboxes), axis=1)
         new_bboxes = new_bboxes.reshape(bboxes.shape[0] * 2, bboxes.shape[1])
-        #bboxes = self._expand_bbox(bboxes)
+        new_bboxes = self._expand_bbox(new_bboxes)
         bboxes = Variable(torch.FloatTensor(new_bboxes).contiguous().cuda())
 
         Q_output = self.eval_net(imgs, bboxes)
@@ -170,9 +183,9 @@ class DQN(object):
         return new_bbox
 
     def _adjust_learning_rate(self):
-        if self.iters > 8000:
+        if self.iters > 16000:
             lr = self.learning_rate * 0.01
-        elif self.iters > 6000:
+        elif self.iters > 12000:
             lr = self.learning_rate * 0.1
         else:
             lr = self.learning_rate

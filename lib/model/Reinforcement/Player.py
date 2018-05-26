@@ -17,7 +17,7 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from pycocotools.mask import iou as IoU
 from model.Reinforcement.Policy import DQN
-from model.Reinforcement.utils import AveMeter
+from model.Reinforcement.utils import *
 
 class Player(object):
     def __init__(self, config):
@@ -82,7 +82,7 @@ class Player(object):
                     # compute iou for epoch bbox before and afer action
                     # we can get delta_iou
                     # bboxes, actions, transform_bboxes, delta_iou
-                    transform_bboxes = self._transform(bboxes, actions)
+                    transform_bboxes = transform(bboxes, actions)
                     old_iou = self._computeIoU(gts, bboxes)
                     # logger.info(len(old_iou))
                     new_iou = self._computeIoU(gts, transform_bboxes)
@@ -135,9 +135,9 @@ class Player(object):
                         self._save_model(state)
                         logger.info("Save Checkpoint at {} iters".format(iters))
 
-                    if iters % self.target_network_update_freq == 0:
-                        self.policy.update_target_network()
-                        logger.info("Update Target Network at {} iters".format(iters))
+                    #if iters % self.target_network_update_freq == 0:
+                    #    self.policy.update_target_network()
+                    #    logger.info("Update Target Network at {} iters".format(iters))
 
                     start = time.time()
                     bboxes = transform_bboxes
@@ -217,11 +217,12 @@ class Player(object):
             ids = inp[5]
 
             # get actions
+            
             actions = self.policy.get_action(imgs, bboxes).tolist()
             for action in actions:
                 action_nums[action] += 1
             # get old_iou & new_iou
-            transform_bboxes = self._transform(bboxes, actions)
+            transform_bboxes = transform(bboxes, actions)
             old_iou = self._computeIoU(gts, bboxes)
             new_iou = self._computeIoU(gts, transform_bboxes)
 
@@ -243,7 +244,8 @@ class Player(object):
             iou_nums[5] += tmp5
             iou_nums[6] += tmp6
             tmp = len([u for u in old_iou if u >= 0.5])
-            logger.info("| {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |"
+            if tmp > 0:
+                logger.info("| {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} | {:.4f} |"
                         .format(tmp0 / tmp, tmp1 / tmp, tmp2 / tmp,
                                 tmp3 / tmp, tmp4 / tmp, tmp5 / tmp,
                                 tmp6 / tmp))
@@ -469,13 +471,13 @@ class Player(object):
         bg_inds = np.where((np.array(delta_iou) < 0) & (np.array(old_iou) > 0.5))[0]
         # logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         # logger.info("bg num: {}".format(len(bg_inds)))
-        fg_num = int(self.sample_num * self.sample_ratio)
-        if len(fg_inds) > fg_num:
-            fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
+        # fg_num = int(self.sample_num * self.sample_ratio)
+        # if len(fg_inds) > fg_num:
+        #     fg_inds = fg_inds[np.random.randint(len(fg_inds), size=fg_num)]
 
-        bg_num = self.sample_num - len(fg_inds)
-        if len(bg_inds) > bg_num:
-            bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
+        # bg_num = self.sample_num - len(fg_inds)
+        # if len(bg_inds) > bg_num:
+        #     bg_inds = bg_inds[np.random.randint(len(bg_inds), size=bg_num)]
 
         logger.info("fg num: {0} bgnum: {1}".format(len(fg_inds), len(bg_inds)))
         inds = np.array(np.append(fg_inds, bg_inds))

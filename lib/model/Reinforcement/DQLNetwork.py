@@ -123,7 +123,7 @@ class ResNet(nn.Module):
 
         self.RCNN_roi_align = RoIAlignAvg(7, 7, 1.0 / 16.0)
 
-        self.fc1 = nn.Linear(2048 * 2, action_num * class_num)
+        self.fc1 = nn.Linear(2048 * 6, action_num * class_num)
         #self.relu = nn.ReLU()
         #self.fc2 = nn.Linear(2048, action_num)
 
@@ -181,7 +181,7 @@ class ResNet(nn.Module):
         pooled_feat = self.layer4(roi_feat)
         pooled_feat = pooled_feat.mean(3)
         pooled_feat = pooled_feat.mean(2)
-        pooled_feat = pooled_feat.view(pooled_feat.shape[0] // 2, -1)
+        pooled_feat = pooled_feat.view(pooled_feat.shape[0] // 6, -1)
 
         x = self.fc1(pooled_feat)
         # x = self.relu(x)
@@ -222,12 +222,12 @@ def resnet50(pretrained=False):
     return model
 
 
-def resnet101(pretrained=False):
+def resnet101(pretrained=False, class_num=80, action_num=57):
     """Constructs a ResNet-101 model.
     Args:
     pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = ResNet(Bottleneck, [3, 4, 23, 3])
+    model = ResNet(Bottleneck, [3, 4, 23, 3], class_num=class_num, action_num=action_num)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet101']))
     return model
